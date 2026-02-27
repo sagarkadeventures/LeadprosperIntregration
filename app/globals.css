@@ -18,7 +18,7 @@
 
 body {
   font-family: "DM Sans", system-ui, sans-serif;
-  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 50%, #f5f0ff 100%);
+    background-color: #ffffff;
   min-height: 100vh;
 }
 
