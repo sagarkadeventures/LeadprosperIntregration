@@ -206,7 +206,7 @@ export async function POST(request) {
 
       // Sensitive
       social_security_number: ssn,
-      driver_license_number:  body.driver_license_number,
+driver_license_number:  (body.driver_license_number || "").replace(/\D/g, ""),
       license_state:          body.license_state,
 
       // Banking
@@ -228,8 +228,8 @@ export async function POST(request) {
       term_sms:                 1,
 
       // PDV Portal buyer credentials
-      aff_id:  process.env.LP_AFF_ID  || "00192482",
-      ckm_key: process.env.LP_CKM_KEY || "e271641XC1XJh",
+      aff_id:  process.env.LP_AFF_ID  || "5922",
+      ckm_key: process.env.LP_CKM_KEY || "ng2dp0YbGgp4",
       sub_aff: "",
 
       // Auto-detected
