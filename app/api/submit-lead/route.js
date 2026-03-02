@@ -142,10 +142,11 @@ export async function POST(request) {
     const body = await request.json();
 
     // ── Server-side auto-detected ───────────────────────────
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "0.0.0.0";
+    // To this (for testing only):
+const ip =
+  request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+  request.headers.get("x-real-ip") ||
+  "72.43.128.55";   // ← real US IP for testing, change back to "0.0.0.0" for production
     const userAgent =
       request.headers.get("user-agent") || "Unknown Browser";
 
