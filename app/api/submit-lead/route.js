@@ -121,9 +121,10 @@ function mapLMBoolean(val) {
   return "false";
 }
 
-/** LP residence_type → LeadsMarket ResidenceType */
-function mapLMResidenceType(residenceType) {
-  return (residenceType || "").toLowerCase() === "own" ? "Own" : "Rent";
+/** Frontend value → LP campaign allowed value */
+function mapResidenceForLP(val) {
+  if ((val || "").toLowerCase() === "own") return "Home Owner";
+  return "Renting";
 }
 
 /** LP approximate_credit_score → LeadsMarket Credit */
@@ -226,7 +227,7 @@ export async function POST(request) {
       //   pay_frequency:            Weekly, Bi Weekly, Twice Monthly, Monthly
       //   approximate_credit_score: Excellent, Good, Fair, Poor, Unsure
       //   bank_type:                Checking, Savings
-      residence_type:           body.residence_type,
+      residence_type:           mapResidenceForLP(body.residence_type),
       income_source:            body.income_source,
       income_payment_type:      body.income_payment_type,
       pay_frequency:            body.pay_frequency,

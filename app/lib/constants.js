@@ -116,6 +116,15 @@ export const MONTHS_AT_BANK = [
   { value: "120", label: "5+ years" },
 ];
 
+export const MONTHS_AT_EMPLOYER = [
+  { value: "6", label: "Less than 6 months" },
+  { value: "12", label: "6–12 months" },
+  { value: "24", label: "1–2 years" },
+  { value: "36", label: "2–3 years" },
+  { value: "60", label: "3–5 years" },
+  { value: "120", label: "5+ years" },
+];
+
 export const CALL_TIMES = [
   { value: "Anytime", label: "Anytime" },
   { value: "Morning", label: "Morning (8am-12pm)" },
