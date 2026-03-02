@@ -35,8 +35,9 @@ export default function StepAddress({ data, errors, onChange }) {
           value={data.residence_type}
           onChange={onChange}
           options={[
-            { value: "Renting", label: "Rent" },
-            { value: "Home Owner", label: "Own" },
+            { value: "Rent", label: "Rent" },
+            { value: "Own", label: "Own" },
+            { value: "Other", label: "Other" },
           ]}
           error={errors.residence_type}
         />

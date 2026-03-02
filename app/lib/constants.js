@@ -11,7 +11,6 @@ export const US_STATES = [
   { value: "CO", label: "Colorado" },
   { value: "CT", label: "Connecticut" },
   { value: "DE", label: "Delaware" },
-  { value: "DC", label: "District of Columbia" },
   { value: "FL", label: "Florida" },
   { value: "GA", label: "Georgia" },
   { value: "HI", label: "Hawaii" },
@@ -54,52 +53,43 @@ export const US_STATES = [
   { value: "WV", label: "West Virginia" },
   { value: "WI", label: "Wisconsin" },
   { value: "WY", label: "Wyoming" },
+  { value: "DC", label: "District of Columbia" },
 ];
 
-// ── Income Source ─────────────────────────────────────────────
-// Values match Xanadu IncomeType: Employed, SelfEmployed, Benefits, Unemployment, None
 export const INCOME_SOURCES = [
-  { value: "Employed", label: "Full Time Employed" },
-  { value: "Employed_PT", label: "Part Time Employed" },
-  { value: "SelfEmployed", label: "Self Employed" },
-  { value: "Benefits", label: "Disability / Benefits" },
+  { value: "Employment", label: "Employed" },
+  { value: "Self Employed", label: "Self Employed" },
+  { value: "Benefits", label: "Benefits / Disability" },
   { value: "Unemployment", label: "Unemployment" },
-  { value: "None", label: "No Income" },
+  { value: "Currently Unemployed", label: "Currently Unemployed" },
 ];
 
-// ── Pay Frequency ─────────────────────────────────────────────
-// Values match Xanadu PayFrequency: Weekly, BiWeekly, TwiceMonthly, Monthly
 export const PAY_FREQUENCIES = [
   { value: "Weekly", label: "Weekly" },
-  { value: "BiWeekly", label: "Every Other Week (Bi-Weekly)" },
-  { value: "TwiceMonthly", label: "Twice a Month (Semi-Monthly)" },
+  { value: "Bi Weekly", label: "Bi-Weekly (Every 2 Weeks)" },
+  { value: "Twice Monthly", label: "Twice Monthly (1st & 15th)" },
   { value: "Monthly", label: "Monthly" },
 ];
 
-// ── Credit Rating ─────────────────────────────────────────────
-// Values match Xanadu CreditRating: Excellent, Good, Fair, Poor
 export const CREDIT_RATINGS = [
   { value: "Excellent", label: "Excellent (750+)" },
   { value: "Good", label: "Good (700-749)" },
   { value: "Fair", label: "Fair (650-699)" },
   { value: "Poor", label: "Poor (Below 650)" },
+  { value: "Unsure", label: "Unsure" },
 ];
 
-// ── Loan Reason ───────────────────────────────────────────────
-// Values match Xanadu Loan_Reason accepted values
 export const LOAN_REASONS = [
-  { value: "DebtConsolidation", label: "Debt Consolidation" },
-  { value: "CreditCard", label: "Credit Card Payoff" },
-  { value: "HomeImprovement", label: "Home Improvement" },
-  { value: "MajorPurchase", label: "Major Purchase" },
-  { value: "Car", label: "Car / Auto Repair" },
+  { value: "Debt Consolidation", label: "Debt Consolidation" },
+  { value: "Emergency", label: "Emergency" },
+  { value: "Home Improvement", label: "Home Improvement" },
+  { value: "Auto Repair", label: "Auto Repair" },
   { value: "Medical", label: "Medical" },
-  { value: "Relocation", label: "Moving / Relocation" },
+  { value: "Moving", label: "Moving / Relocation" },
   { value: "Vacation", label: "Vacation" },
   { value: "Wedding", label: "Wedding" },
+  { value: "Education", label: "Education" },
   { value: "Business", label: "Business" },
-  { value: "GreenLoan", label: "Green Loan / Energy" },
-  { value: "Household", label: "Household Expenses" },
   { value: "Other", label: "Other" },
 ];
 
@@ -119,17 +109,6 @@ export const YEARS_AT_ADDRESS = [
 
 export const MONTHS_AT_BANK = [
   { value: "6", label: "Less than 6 months" },
-  { value: "12", label: "6–12 months" },
-  { value: "24", label: "1–2 years" },
-  { value: "36", label: "2–3 years" },
-  { value: "60", label: "3–5 years" },
-  { value: "120", label: "5+ years" },
-];
-
-// ── NEW: Months at Employer (Xanadu: MonthsAtEmployer) ────────
-export const MONTHS_AT_EMPLOYER = [
-  { value: "3", label: "Less than 3 months" },
-  { value: "6", label: "3–6 months" },
   { value: "12", label: "6–12 months" },
   { value: "24", label: "1–2 years" },
   { value: "36", label: "2–3 years" },
@@ -171,7 +150,7 @@ export const INITIAL_FORM_DATA = {
   company_name: "",
   job_title: "",
   work_phone: "",
-  months_at_employer: "",       // NEW – replaces employment_started
+  employment_started: "",
   next_pay_date: "",
   second_pay_date: "",
   pay_frequency: "",
