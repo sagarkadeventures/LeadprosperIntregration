@@ -7,30 +7,31 @@ import axios from "axios";
 //  Sends form data to LeadProsper Direct Post.
 //  LP handles ALL buyer transforms and routing.
 //  We only send LP campaign fields in OUR format.
-//
-//  NO vendor-specific mapping needed:
-//  - LP transforms Own → Home Owner (PDV)
-//  - LP transforms Own → 1 (Xanadu)
-//  - LP transforms YYYY-MM-DD → MM/DD/YYYY per buyer
-//  - LP transforms Weekly → WEEKLY per buyer
 // ═══════════════════════════════════════════════════════════════
 
 export async function POST(request) {
   try {
     const body = await request.json();
 
-    // ── Server-side auto-detected ───────────────────────────
-    const ip =
+    // ── IP Detection (Vercel + Cloudflare + local) ──────────
+    const rawIp =
+      request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-real-ip") ||
-      "72.43.128.55"; // fallback US IP for local testing
+      request.headers.get("cf-connecting-ip") ||
+      "0.0.0.0";
+
+    // Replace localhost IPs with valid US IP (local dev only)
+    const ip = (rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0")
+      ? "72.43.128.55"
+      : rawIp;
 
     const userAgent =
       request.headers.get("user-agent") || "Unknown Browser";
 
     // ── Clean inputs ────────────────────────────────────────
     const mobilePhone = (body.mobile_phone || "").replace(/\D/g, "");
-    const workPhone   = (body.work_phone || "").replace(/\D/g, "");
+    const workPhone   = (body.work_phone || "").replace(/\D/g, "") || mobilePhone;
     const ssn         = (body.social_security_number || "").replace(/\D/g, "");
     const cleanedDL   = (body.driver_license_number || "").trim();
     const cleanedABA  = (body.bank_aba || "").replace(/\D/g, "");
@@ -38,7 +39,7 @@ export async function POST(request) {
     const loanAmount  = parseInt((body.loan_amount || "0").replace(/,/g, ""), 10);
     const monthlyIncomeRaw = parseFloat((body.monthly_income || "0").replace(/,/g, ""));
 
-    // ── Computed dates (all YYYY-MM-DD — LP transforms per buyer) ──
+    // ── Computed dates (all YYYY-MM-DD) ─────────────────────
     const yearsBack = parseInt(body.years_at_address || "0", 10);
     const moveDate = new Date();
     moveDate.setFullYear(moveDate.getFullYear() - yearsBack);
@@ -54,6 +55,26 @@ export async function POST(request) {
     empDate.setMonth(empDate.getMonth() - empMonths);
     const employmentStarted = empDate.toISOString().split("T")[0];
 
+    // ── Ensure pay dates are FUTURE dates ───────────────────
+    // PDV Portal rejects past dates. Auto-fix if user sent bad dates.
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    let nextPayDate = body.next_pay_date || "";
+    if (!nextPayDate || nextPayDate <= todayStr) {
+      // Compute next Friday
+      const d = new Date();
+      d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7 || 7));
+      nextPayDate = d.toISOString().split("T")[0];
+    }
+
+    let secondPayDate = body.second_pay_date || "";
+    if (!secondPayDate || secondPayDate <= nextPayDate) {
+      // 2 weeks after next_pay_date
+      const d = new Date(nextPayDate);
+      d.setDate(d.getDate() + 14);
+      secondPayDate = d.toISOString().split("T")[0];
+    }
+
     const websiteRef = process.env.WEBSITE_REF || "https://radcred.com/";
 
     const tcpaText = process.env.TCPA_CONSENT_TEXT ||
@@ -61,9 +82,6 @@ export async function POST(request) {
 
     // ══════════════════════════════════════════════════════════
     //  PAYLOAD — LP Campaign Fields ONLY
-    //  No vendor-specific formatting. LP transforms per buyer.
-    //  All dates: YYYY-MM-DD
-    //  All values: exactly as our form collects them
     // ══════════════════════════════════════════════════════════
 
     const payload = {
@@ -73,21 +91,21 @@ export async function POST(request) {
       lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
       lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
       lp_action:      process.env.LP_ACTION      || "",
-      lp_subid1:      "",
-      lp_subid2:      "",
+      lp_subid1:      body.lp_subid1 || "RadCred",            // → Xanadu subOne
+      lp_subid2:      body.lp_subid2 || "Website",            // → Xanadu subTwo (was missing!)
 
       // ──── LP STANDARD SYSTEM FIELDS ───────────────────────
       first_name:           body.first_name,
       last_name:            body.last_name,
       email:                body.email,
       phone:                mobilePhone,
-      date_of_birth:        body.date_birth,                   // YYYY-MM-DD
+      date_of_birth:        body.date_birth,
       gender:               body.gender || "Other",
       address:              body.street,
       city:                 body.city,
       state:                body.state,
       zip_code:             body.post_code,
-      ip_address:           ip,
+      ip_address:           ip,                                // Fixed: never ::1
       user_agent:           userAgent,
       landing_page_url:     websiteRef,
       jornaya_leadid:       body.jornaya_leadid || "",
@@ -95,41 +113,32 @@ export async function POST(request) {
       tcpa_text:            tcpaText,
 
       // ──── LP CAMPAIGN FIELDS ──────────────────────────────
-      // Confirmed values with LP:
-      //   residence_type:           Own, Rent, Other
-      //   income_source:            Employment, Benefits, Self Employed, Unemployment, Currently Unemployed
-      //   income_payment_type:      Direct Deposit, Check
-      //   pay_frequency:            Weekly, Bi Weekly, Twice Monthly, Monthly
-      //   approximate_credit_score: Excellent, Good, Fair, Poor, Unsure
-      //   bank_type:                Checking, Savings
-      //   All dates:                YYYY-MM-DD
-
       // Personal
       title:                "Mr.",
-      date_birth:           body.date_birth,                   // YYYY-MM-DD
+      date_birth:           body.date_birth,
       mobile_phone:         mobilePhone,
       home_phone:           mobilePhone,
 
-      // Address (house_number + street combined in one field)
+      // Address
       street:               body.street,
       post_code:            body.post_code,
       house_number:         "",
-      residence_type:       body.residence_type,               // Own, Rent, Other
-      move_here_date:       moveHereDate,                      // YYYY-MM-DD
+      residence_type:       body.residence_type,
+      move_here_date:       moveHereDate,
 
       // Employment
-      income_source:        body.income_source,                // Employment, Benefits, etc.
+      income_source:        body.income_source,
       company_name:         body.company_name,
       job_title:            body.job_title,
       work_phone:           workPhone,
-      employment_started:   employmentStarted,                 // YYYY-MM-DD
+      employment_started:   employmentStarted,
       monthly_income:       monthlyIncomeRaw,
-      income_payment_type:  body.income_payment_type,          // Direct Deposit, Check
+      income_payment_type:  body.income_payment_type,
 
-      // Pay
-      next_pay_date:        body.next_pay_date,                // YYYY-MM-DD
-      second_pay_date:      body.second_pay_date,              // YYYY-MM-DD
-      pay_frequency:        body.pay_frequency,                // Weekly, Bi Weekly, etc.
+      // Pay (guaranteed future dates)
+      next_pay_date:        nextPayDate,
+      second_pay_date:      secondPayDate,
+      pay_frequency:        body.pay_frequency,
 
       // Loan
       loan_amount:          loanAmount,
@@ -143,8 +152,8 @@ export async function POST(request) {
       bank_name:            body.bank_name,
       bank_aba:             cleanedABA,
       bank_account_number:  cleanedAcct,
-      bank_type:            body.bank_type,                    // Checking, Savings
-      bank_start:           bankStart,                         // YYYY-MM-DD
+      bank_type:            body.bank_type,
+      bank_start:           bankStart,
 
       // Flags
       military_active:      String(body.military_active || "0"),
@@ -152,7 +161,7 @@ export async function POST(request) {
       term_sms:             "1",
 
       // Source / PDV credentials
-      ip:                   ip,
+      ip:                   ip,                                // Fixed: never ::1
       website:              websiteRef,
       aff_id:               process.env.LP_AFF_ID  || "5922",
       ckm_key:              process.env.LP_CKM_KEY || "ng2dp0YbGgp4",
@@ -172,54 +181,35 @@ export async function POST(request) {
     console.log("│ lp_campaign_id:", payload.lp_campaign_id);
     console.log("│ lp_supplier_id:", payload.lp_supplier_id);
     console.log("│ lp_key:        ", payload.lp_key);
-    console.log("│ lp_action:     ", payload.lp_action || "(empty = production)");
+    console.log("│ lp_action:     ", payload.lp_action || "(production)");
+    console.log("│ lp_subid1:     ", payload.lp_subid1);
+    console.log("│ lp_subid2:     ", payload.lp_subid2);
     console.log("└─────────────────────────────────────────────────────────────\n");
 
-    console.log("┌─── LP STANDARD SYSTEM FIELDS ───────────────────────────────");
+    console.log("┌─── LP SYSTEM FIELDS ────────────────────────────────────────");
     console.log("│ first_name:       ", payload.first_name);
     console.log("│ last_name:        ", payload.last_name);
     console.log("│ email:            ", payload.email);
     console.log("│ phone:            ", payload.phone);
     console.log("│ date_of_birth:    ", payload.date_of_birth);
-    console.log("│ gender:           ", payload.gender);
-    console.log("│ address:          ", payload.address);
-    console.log("│ city:             ", payload.city);
     console.log("│ state:            ", payload.state);
     console.log("│ zip_code:         ", payload.zip_code);
     console.log("│ ip_address:       ", payload.ip_address);
-    console.log("│ landing_page_url: ", payload.landing_page_url);
     console.log("└─────────────────────────────────────────────────────────────\n");
 
-    console.log("┌─── LP CAMPAIGN FIELDS (confirmed values) ──────────────────");
-    console.log("│ residence_type:           ", payload.residence_type);
-    console.log("│ income_source:            ", payload.income_source);
-    console.log("│ income_payment_type:      ", payload.income_payment_type);
-    console.log("│ pay_frequency:            ", payload.pay_frequency);
-    console.log("│ approximate_credit_score: ", payload.approximate_credit_score);
-    console.log("│ bank_type:                ", payload.bank_type);
-    console.log("└─────────────────────────────────────────────────────────────\n");
-
-    console.log("┌─── OTHER FIELDS ────────────────────────────────────────────");
-    console.log("│ date_birth:         ", payload.date_birth);
-    console.log("│ street:             ", payload.street);
-    console.log("│ post_code:          ", payload.post_code);
-    console.log("│ mobile_phone:       ", payload.mobile_phone);
-    console.log("│ work_phone:         ", payload.work_phone);
-    console.log("│ move_here_date:     ", payload.move_here_date);
-    console.log("│ loan_amount:        ", payload.loan_amount);
-    console.log("│ monthly_income:     ", payload.monthly_income);
-    console.log("│ company_name:       ", payload.company_name);
-    console.log("│ employment_started: ", payload.employment_started);
-    console.log("│ next_pay_date:      ", payload.next_pay_date);
-    console.log("│ second_pay_date:    ", payload.second_pay_date);
-    console.log("│ SSN:                ", ssn ? "***" + ssn.slice(-4) : "missing");
-    console.log("│ DL:                 ", payload.driver_license_number);
-    console.log("│ bank_name:          ", payload.bank_name);
-    console.log("│ bank_aba:           ", cleanedABA);
-    console.log("│ bank_account:       ", cleanedAcct ? "***" + cleanedAcct.slice(-4) : "missing");
-    console.log("│ bank_start:         ", payload.bank_start);
-    console.log("│ military_active:    ", payload.military_active);
-    console.log("│ aff_id:             ", payload.aff_id);
+    console.log("┌─── CAMPAIGN FIELDS ─────────────────────────────────────────");
+    console.log("│ residence_type:      ", payload.residence_type);
+    console.log("│ income_source:       ", payload.income_source);
+    console.log("│ income_payment_type: ", payload.income_payment_type);
+    console.log("│ pay_frequency:       ", payload.pay_frequency);
+    console.log("│ credit_score:        ", payload.approximate_credit_score);
+    console.log("│ bank_type:           ", payload.bank_type);
+    console.log("│ next_pay_date:       ", payload.next_pay_date);
+    console.log("│ second_pay_date:     ", payload.second_pay_date);
+    console.log("│ bank_aba:            ", cleanedABA ? cleanedABA.slice(0,3) + "******" : "MISSING!");
+    console.log("│ SSN:                 ", ssn ? "***" + ssn.slice(-4) : "MISSING!");
+    console.log("│ loan_amount:         ", payload.loan_amount);
+    console.log("│ monthly_income:      ", payload.monthly_income);
     console.log("└─────────────────────────────────────────────────────────────\n");
 
     console.log("Total payload fields:", Object.keys(payload).length);
