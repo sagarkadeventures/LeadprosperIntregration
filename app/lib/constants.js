@@ -66,7 +66,7 @@ export const INCOME_SOURCES = [
 
 export const PAY_FREQUENCIES = [
   { value: "Weekly", label: "Weekly" },
-  { value: "Bi Weekly", label: "Bi-Weekly (Every 2 Weeks)" },
+  { value: "BiWeekly", label: "Bi-Weekly (Every 2 Weeks)" },
   { value: "Twice Monthly", label: "Twice Monthly (1st & 15th)" },
   { value: "Monthly", label: "Monthly" },
 ];

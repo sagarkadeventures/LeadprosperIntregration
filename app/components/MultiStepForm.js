@@ -74,6 +74,24 @@ export default function MultiStepForm() {
         timeout: 30000,
       });
       setApiResponse(res.data);
+
+      // ── Redirect handling ─────────────────────────────
+      // If buyer returned a redirect URL, redirect the parent
+      // window (outside iframe) to the lender page.
+      // This is required by LeadsMarket, PDV Portal, and Xanadu
+      // to complete the sale.
+      const redirectUrl = res.data?.data?.redirect_url;
+      if (redirectUrl) {
+        toast.success("Application approved! Redirecting you to your lender...", { duration: 3000 });
+        setTimeout(() => {
+          // window.top = parent window (radcred.com)
+          // This breaks out of the iframe on Vercel
+          window.top.location.href = redirectUrl;
+        }, 1500);
+        return;
+      }
+
+      // No redirect URL — show success screen
       setSubmitted(true);
       toast.success("Application submitted successfully!");
     } catch (err) {
