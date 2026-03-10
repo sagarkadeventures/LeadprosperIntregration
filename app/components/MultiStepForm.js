@@ -13,6 +13,11 @@ import StepFinal from "./StepFinal";
 
 const TOTAL_STEPS = STEP_LABELS.length;
 
+// Fallback redirect — used when no buyer redirect_url is returned
+// (duplicates, timeouts, rejections, errors)
+const FALLBACK_REDIRECT_URL =
+  "https://afflat3d3.com/trk/lnk/786BE43A-66BF-4957-B2D1-CEF4DF250208/?o=15451&c=918273&a=516670&k=340953338760B4DF749BD4BFBB0C1B83&l=17035&s1=radcredapplynow";
+
 export default function MultiStepForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
@@ -35,6 +40,20 @@ export default function MultiStepForm() {
     },
     [errors]
   );
+
+  // ── Redirect helper (breaks out of iframe) ───────────────
+  const redirectUser = (url, message, delay = 1500) => {
+    toast.success(message, { duration: 3000 });
+    setTimeout(() => {
+      // window.top = parent window (radcred.com), breaks out of iframe
+      try {
+        window.top.location.href = url;
+      } catch (e) {
+        // Fallback if cross-origin blocks window.top
+        window.location.href = url;
+      }
+    }, delay);
+  };
 
   // ── Navigation ───────────────────────────────────────────
   const goNext = () => {
@@ -71,45 +90,43 @@ export default function MultiStepForm() {
     try {
       const res = await axios.post("/api/submit-lead", formData, {
         headers: { "Content-Type": "application/json" },
-        timeout: 30000,
+        timeout: 95000,  // 95s — slightly more than route.js 90s timeout
       });
       setApiResponse(res.data);
 
-      // ── Redirect handling ─────────────────────────────
-      // If buyer returned a redirect URL, redirect the parent
-      // window (outside iframe) to the lender page.
-      // This is required by LeadsMarket, PDV Portal, and Xanadu
-      // to complete the sale.
       const redirectUrl = res.data?.data?.redirect_url;
+      const isDuplicate = res.data?.duplicate === true;
+      const isTimeout = res.data?.timeout === true;
+
+      // ── CASE 1: Buyer returned redirect URL → redirect to lender
       if (redirectUrl) {
-        toast.success("Application approved! Redirecting you to your lender...", { duration: 3000 });
-        setTimeout(() => {
-          // window.top = parent window (radcred.com)
-          // This breaks out of the iframe on Vercel
-          window.top.location.href = redirectUrl;
-        }, 1500);
+        redirectUser(redirectUrl, "Application approved! Redirecting you to your lender...");
         return;
       }
 
-      // No redirect URL — show success screen
+      // ── CASE 2: Duplicate, timeout, or no redirect → fallback redirect
+      if (isDuplicate || isTimeout || !redirectUrl) {
+        redirectUser(FALLBACK_REDIRECT_URL, "Application submitted! Redirecting...");
+        return;
+      }
+
+      // ── CASE 3: Fallback — show success screen (shouldn't reach here)
       setSubmitted(true);
       toast.success("Application submitted successfully!");
+
     } catch (err) {
       console.error("Submission error:", err);
-      const responseData = err?.response?.data;
-      const msg =
-        responseData?.message ||
-        responseData?.error?.message ||
-        err.message ||
-        "Something went wrong. Please try again.";
-      toast.error(msg, { duration: 8000 });
-      if (responseData) setApiResponse(responseData);
+
+      // ── CASE 4: Network error / timeout on frontend → still redirect
+      // The lead was likely received by LP even if we timed out
+      redirectUser(FALLBACK_REDIRECT_URL, "Application submitted! Redirecting...", 2000);
+
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Success screen ───────────────────────────────────────
+  // ── Success screen (only shown if redirect fails) ────────
   if (submitted) {
     return (
       <div className="animate-fade-in-up text-center py-8">

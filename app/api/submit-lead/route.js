@@ -21,7 +21,6 @@ export async function POST(request) {
       request.headers.get("cf-connecting-ip") ||
       "0.0.0.0";
 
-    // Replace localhost IPs with valid US IP (local dev only)
     const ip = (rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0")
       ? "72.43.128.55"
       : rawIp;
@@ -56,12 +55,10 @@ export async function POST(request) {
     const employmentStarted = empDate.toISOString().split("T")[0];
 
     // ── Ensure pay dates are FUTURE dates ───────────────────
-    // PDV Portal rejects past dates. Auto-fix if user sent bad dates.
     const todayStr = new Date().toISOString().split("T")[0];
 
     let nextPayDate = body.next_pay_date || "";
     if (!nextPayDate || nextPayDate <= todayStr) {
-      // Compute next Friday
       const d = new Date();
       d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7 || 7));
       nextPayDate = d.toISOString().split("T")[0];
@@ -69,7 +66,6 @@ export async function POST(request) {
 
     let secondPayDate = body.second_pay_date || "";
     if (!secondPayDate || secondPayDate <= nextPayDate) {
-      // 2 weeks after next_pay_date
       const d = new Date(nextPayDate);
       d.setDate(d.getDate() + 14);
       secondPayDate = d.toISOString().split("T")[0];
@@ -81,7 +77,7 @@ export async function POST(request) {
       "By clicking 'Submit' I agree by electronic signature to be contacted by RadCred through a live agent, artificial or prerecorded voice, and automated SMS text at my residential or cellular number, dialed manually or by autodialer, and by email. I agree to the Disclaimer, Privacy Policy and Terms of Use. I authorize RadCred and its partners to use autodialers, send SMS messages, or deliver prerecorded messages to my phone number. I understand consent is not required to obtain a loan.";
 
     // ══════════════════════════════════════════════════════════
-    //  PAYLOAD — LP Campaign Fields ONLY
+    //  PAYLOAD
     // ══════════════════════════════════════════════════════════
 
     const payload = {
@@ -91,8 +87,8 @@ export async function POST(request) {
       lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
       lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
       lp_action:      process.env.LP_ACTION      || "",
-      lp_subid1:      body.lp_subid1 || "RadCred",            // → Xanadu subOne
-      lp_subid2:      body.lp_subid2 || "Website",            // → Xanadu subTwo (was missing!)
+      lp_subid1:      body.lp_subid1 || "RadCred",
+      lp_subid2:      body.lp_subid2 || "Website",
 
       // ──── LP STANDARD SYSTEM FIELDS ───────────────────────
       first_name:           body.first_name,
@@ -105,7 +101,7 @@ export async function POST(request) {
       city:                 body.city,
       state:                body.state,
       zip_code:             body.post_code,
-      ip_address:           ip,                                // Fixed: never ::1
+      ip_address:           ip,
       user_agent:           userAgent,
       landing_page_url:     websiteRef,
       jornaya_leadid:       body.jornaya_leadid || "",
@@ -113,20 +109,17 @@ export async function POST(request) {
       tcpa_text:            tcpaText,
 
       // ──── LP CAMPAIGN FIELDS ──────────────────────────────
-      // Personal
       title:                "Mr.",
       date_birth:           body.date_birth,
       mobile_phone:         mobilePhone,
       home_phone:           mobilePhone,
 
-      // Address
       street:               body.street,
       post_code:            body.post_code,
       house_number:         "",
       residence_type:       body.residence_type,
       move_here_date:       moveHereDate,
 
-      // Employment
       income_source:        body.income_source,
       company_name:         body.company_name,
       job_title:            body.job_title,
@@ -135,33 +128,27 @@ export async function POST(request) {
       monthly_income:       monthlyIncomeRaw,
       income_payment_type:  body.income_payment_type,
 
-      // Pay (guaranteed future dates)
       next_pay_date:        nextPayDate,
       second_pay_date:      secondPayDate,
       pay_frequency:        body.pay_frequency,
 
-      // Loan
       loan_amount:          loanAmount,
       approximate_credit_score: body.approximate_credit_score || "",
 
-      // Sensitive
       social_security_number: ssn,
       driver_license_number:  cleanedDL,
 
-      // Banking
       bank_name:            body.bank_name,
       bank_aba:             cleanedABA,
       bank_account_number:  cleanedAcct,
       bank_type:            body.bank_type,
       bank_start:           bankStart,
 
-      // Flags
       military_active:      String(body.military_active || "0"),
       term_email:           "1",
       term_sms:             "1",
 
-      // Source / PDV credentials
-      ip:                   ip,                                // Fixed: never ::1
+      ip:                   ip,
       website:              websiteRef,
       aff_id:               process.env.LP_AFF_ID  || "5922",
       ckm_key:              process.env.LP_CKM_KEY || "ng2dp0YbGgp4",
@@ -217,6 +204,7 @@ export async function POST(request) {
 
     // ══════════════════════════════════════════════════════════
     //  SEND TO LEADPROSPER
+    //  Timeout: 90s (PDV Portal can take 60s+)
     // ══════════════════════════════════════════════════════════
 
     const lpUrl = process.env.LP_DIRECT_POST_URL || "https://api.leadprosper.io/direct_post";
@@ -224,7 +212,7 @@ export async function POST(request) {
 
     const lpResponse = await axios.post(lpUrl, payload, {
       headers: { "Content-Type": "application/json" },
-      timeout: 30000,
+      timeout: 90000,  // 90 seconds — LP cascades through multiple buyers
     });
 
     const lpData = lpResponse.data;
@@ -237,7 +225,7 @@ export async function POST(request) {
     // ── Parse response ──────────────────────────────────────
     const hasLeadId = !!(lpData?.lead_id || lpData?.id);
     const isAccepted = lpData?.status === "ACCEPTED" || lpData?.code === 0;
-    const isDuplicated = lpData?.status === "DUPLICATED" || lpData?.code === 1008;
+    const isDuplicated = lpData?.status === "DUPLICATED" || lpData?.code === 1008 || lpData?.code === 1049;
 
     const redirectUrl =
       lpData?.redirect_url || lpData?.redirect ||
@@ -249,14 +237,17 @@ export async function POST(request) {
       console.warn("[LeadProsper] Lead stored but buyer rejected →", "code:", lpData?.code, "message:", lpData?.message);
     }
 
+    // DUPLICATED — lead already sent before
     if (isDuplicated) {
       return NextResponse.json({
         success: true,
+        duplicate: true,
         message: "Application submitted successfully! We will contact you soon.",
         data: { lead_id: lpData?.lead_id || lpData?.id || null, lp_status: "DUPLICATED" },
       });
     }
 
+    // ACCEPTED — buyer took the lead
     if (hasLeadId || isAccepted) {
       return NextResponse.json({
         success: true,
@@ -270,17 +261,27 @@ export async function POST(request) {
       });
     }
 
+    // ERROR — no buyer accepted
     const errorMsg = lpData?.message || "Something went wrong. Please verify your information and try again.";
     console.error("[LeadProsper] Failure:", errorMsg);
 
-    return NextResponse.json({ success: false, message: errorMsg, data: lpData }, { status: 422 });
+    return NextResponse.json({
+      success: false,
+      message: "Application submitted successfully! We will contact you soon.",
+      data: { lead_id: lpData?.lead_id || lpData?.id || null, lp_status: lpData?.status || "ERROR" },
+    }, { status: 200 });  // Still 200 — user doesn't need to know buyer rejected
 
   } catch (error) {
     console.error("[submit-lead] Error:", error?.response?.data || error.message);
+
+    // Timeout or network error — lead may have been received by LP
+    const isTimeout = error.code === "ECONNABORTED" || error.message?.includes("timeout");
+
     return NextResponse.json({
-      success: false,
-      message: error?.response?.data?.message || error.message || "Something went wrong.",
-      error: error?.response?.data || { message: error.message },
-    }, { status: error?.response?.status || 500 });
+      success: true,
+      timeout: isTimeout,
+      message: "Application submitted successfully! We will contact you soon.",
+      data: { lead_id: null, lp_status: isTimeout ? "TIMEOUT" : "ERROR" },
+    }, { status: 200 });  // Always 200 to user — we don't want them to resubmit
   }
 }
