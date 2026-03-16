@@ -5,7 +5,7 @@ import { MongoClient } from "mongodb";
 // ═══════════════════════════════════════════════════════════════
 //  Vercel serverless function config
 // ═══════════════════════════════════════════════════════════════
-export const maxDuration = 300;  // 300s — Vercel Pro required
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 // ═══════════════════════════════════════════════════════════════
@@ -25,6 +25,7 @@ async function getMongoClient() {
   return client;
 }
 
+// ── Insert lead doc, returns MongoDB _id ─────────────────────
 async function insertLead(leadDoc) {
   try {
     const client = await getMongoClient();
@@ -38,6 +39,7 @@ async function insertLead(leadDoc) {
   }
 }
 
+// ── Update existing doc after LP responds ────────────────────
 async function updateLead(insertedId, update) {
   if (!insertedId) return;
   try {
@@ -53,6 +55,7 @@ async function updateLead(insertedId, update) {
   }
 }
 
+// ── Pretty print saved doc ───────────────────────────────────
 function printDoc(doc, insertedId) {
   console.log("\n╔══════════════════════════════════════════════════════════════╗");
   console.log("║                  MONGODB — DOCUMENT SAVED                   ║");
@@ -122,29 +125,12 @@ export async function POST(request) {
   // ── Clean inputs ────────────────────────────────────────
   const mobilePhone      = (body.mobile_phone             || "").replace(/\D/g, "");
   const workPhone        = (body.work_phone               || "").replace(/\D/g, "") || mobilePhone;
-  const ssn              = (body.social_security_number   || "").replace(/\D/g, "").padStart(9, "0");
-  const cleanedDL        = (body.driver_license_number    || "").trim().padStart(4, "0");
-  const cleanedABA       = (body.bank_aba                 || "").replace(/\D/g, "").padStart(9, "0");
-  const cleanedAcct      = (body.bank_account_number      || "").replace(/\D/g, "").padStart(4, "0");
+  const ssn              = (body.social_security_number   || "").replace(/\D/g, "");
+  const cleanedDL        = (body.driver_license_number    || "").trim();
+  const cleanedABA       = (body.bank_aba                 || "").replace(/\D/g, "");
+  const cleanedAcct      = (body.bank_account_number      || "").replace(/\D/g, "");
   const loanAmount       = parseInt((body.loan_amount     || "0").replace(/,/g, ""), 10);
   const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
-
-  // ── income_source mapping ───────────────────────────────
-  // LP form sends "Employment" but PDV Portal needs "Full Time Employed"
-  // ── income_source mapping ───────────────────────────────
-// REMOVE the entire incomeSourceMap block and replace with:
-const incomeSourceMap = {
-  "Employment":           "Employment",
-  "Full Time Employed":   "Employment",
-  "Part Time Employed":   "Employment",
-  "Temporary Employed":   "Employment",
-  "Self Employed":        "Self Employed",
-  "Benefits":             "Benefits",
-  "Disability Benefits":  "Benefits",
-  "Unemployment":         "Unemployment",
-  "Currently Unemployed": "Unemployment",
-};
-const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
   // ── Computed dates ──────────────────────────────────────
   const yearsBack = parseInt(body.years_at_address   || "0",  10);
@@ -222,7 +208,7 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
     residence_type:  body.residence_type,
     move_here_date:  moveHereDate,
 
-    income_source:       incomeSource,  // ✅ mapped via incomeSourceMap
+    income_source:       body.income_source,
     company_name:        body.company_name,
     job_title:           body.job_title,
     work_phone:          workPhone,
@@ -293,12 +279,13 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
   // ══════════════════════════════════════════════════════════
   //  STEP 1 — SAVE TO MONGODB FIRST (before LP call)
+  //  This guarantees data is never lost even on timeout
   // ══════════════════════════════════════════════════════════
   const leadDoc = {
     created_at:      new Date(),
     source:          "radcred-form",
     lead_id:         null,
-    status:          "PENDING",
+    status:          "PENDING",        // will be updated after LP responds
     redirect_url:    null,
     price:           null,
     first_name:      payload.first_name,
@@ -318,6 +305,7 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
   // ══════════════════════════════════════════════════════════
   //  STEP 2 — SEND TO LEADPROSPER
+  //  Timeout: 119s (max safe under Vercel's 120s hard limit)
   // ══════════════════════════════════════════════════════════
   const lpUrl = process.env.LP_DIRECT_POST_URL || "https://api.leadprosper.io/direct_post";
   console.log("[submit-lead] Sending →", lpUrl);
@@ -325,7 +313,7 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
   try {
     const lpResponse = await axios.post(lpUrl, payload, {
       headers: { "Content-Type": "application/json" },
-      timeout: 295000,   // 295s — 5s buffer under Vercel's 300s maxDuration
+      timeout: 295000,   // ← increased from 115s to 119s
     });
 
     const lpData = lpResponse.data;
@@ -338,7 +326,6 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
       lpData?.status === "DUPLICATED" ||
       lpData?.code   === 1008         ||
       lpData?.code   === 1049;
-    const isError      = lpData?.status === "ERROR" || (lpData?.code && lpData?.code !== 0 && !isDuplicated);
 
     const redirectUrl =
       lpData?.redirect_url      ||
@@ -353,35 +340,20 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
     let finalStatus = "REJECTED";
     if (isDuplicated)                 finalStatus = "DUPLICATED";
-    else if (isError)                 finalStatus = "ERROR";
     else if (hasLeadId || isAccepted) finalStatus = lpData?.status || "ACCEPTED";
 
-    // ── STEP 3 — UPDATE MongoDB ────────────────────────────
+    // ── STEP 3 — UPDATE MongoDB with LP response ───────────
     await updateLead(insertedId, {
       lead_id:         lpData?.lead_id || lpData?.id || null,
       status:          finalStatus,
       redirect_url:    redirectUrl,
       price:           price,
       lp_raw_response: lpData,
-      lp_message:      lpData?.message || null,
     });
 
     console.log(`\n✅ MongoDB UPDATED — status: ${finalStatus} | redirect: ${redirectUrl} | price: ${price}\n`);
 
     // ── Return response ────────────────────────────────────
-    if (isError) {
-      return NextResponse.json({
-        success: true,
-        message: "Application submitted successfully!",
-        data: {
-          lead_id:      lpData?.lead_id || lpData?.id || null,
-          lp_status:    "ERROR",
-          lp_message:   lpData?.message || "Unknown error",
-          redirect_url: null,
-        },
-      });
-    }
-
     if (isDuplicated) {
       return NextResponse.json({
         success:   true,
@@ -424,6 +396,8 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
     console.error(`\n[submit-lead] ${isTimeout ? "TIMEOUT" : "ERROR"}:`, error.message);
 
+    // ── UPDATE MongoDB with timeout/error status ───────────
+    // Lead payload is already saved from STEP 1 — just update status
     await updateLead(insertedId, {
       status:        isTimeout ? "TIMEOUT" : "ERROR",
       error_message: error.message,

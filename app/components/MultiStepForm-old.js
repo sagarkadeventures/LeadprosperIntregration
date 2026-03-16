@@ -53,30 +53,20 @@ export default function MultiStepForm() {
   );
 
   // ── Redirect helper ──────────────────────────────────────
-  // Uses real anchor click — cannot be intercepted by Next.js dev router,
-  // browser popup policy, or any JS framework.
-  // In iframe: breaks out to parent via window.top
-  const redirectUser = (url) => {
-    try {
-      if (window.top !== window.self) {
-        // ✅ Inside iframe (radcred.com/apply-now) — break out to parent
-        window.top.location.href = url;
-      } else {
-        // ✅ localhost + standalone — real anchor click bypasses Next.js router
-        const a = document.createElement("a");
-        a.href = url;
-        a.target = "_top";
-        a.rel = "noopener noreferrer";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-    } catch (e) {
-      // ✅ Final fallback
+  // ── Redirect helper ──────────────────────────────────────
+const redirectUser = (url) => {
+  try {
+    if (window.top !== window.self) {
+      // ✅ Inside iframe — break out to parent
+      window.top.location.href = url;
+    } else {
+      // ✅ localhost + standalone — direct navigation, never blocked
       window.location.href = url;
     }
-  };
-
+  } catch (e) {
+    window.location.href = url;
+  }
+};
   // ── Navigation ───────────────────────────────────────────
   const goNext = () => {
     const stepErrors = validateStep(currentStep, formData);
@@ -125,35 +115,25 @@ export default function MultiStepForm() {
     try {
       const res = await axios.post("/api/submit-lead", formData, {
         headers: { "Content-Type": "application/json" },
-        timeout: 310000, // 310s — must exceed backend maxDuration (300s)
+        // ✅ Fix comment
+timeout: 310000,  // 310s — must exceed backend maxDuration (300s)
       });
 
       clearInterval(msgInterval);
       setApiResponse(res.data);
 
       const redirectUrl = res.data?.data?.redirect_url;
-      const lpStatus    = res.data?.data?.lp_status;
-
-      // CASE 0: LP returned ERROR (bad field/invalid data) → show error to user
-      if (lpStatus === "ERROR") {
-        setSubmitting(false);
-        toast.error(
-          "We could not process your application. Please check your information and try again.",
-          { duration: 6000 }
-        );
-        return;
-      }
 
       // CASE 1: Buyer returned redirect URL → go to lender
-      if (redirectUrl) {
-        setProcessingMsg("Application approved! Redirecting to your lender...");
-        setTimeout(() => redirectUser(redirectUrl), 500);
-        return;
-      }
+if (redirectUrl) {
+  setProcessingMsg("Application approved! Redirecting to your lender...");
+  setTimeout(() => redirectUser(redirectUrl), 500);  // 500ms is enough
+  return;
+}
 
-      // CASE 2: No redirect URL (duplicate, rejected, no buyer) → fallback
-      setProcessingMsg("Application submitted! Redirecting...");
-      setTimeout(() => redirectUser(FALLBACK_REDIRECT_URL), 500);
+// CASE 2: fallback
+setProcessingMsg("Application submitted! Redirecting...");
+setTimeout(() => redirectUser(FALLBACK_REDIRECT_URL), 500);
 
     } catch (err) {
       clearInterval(msgInterval);
