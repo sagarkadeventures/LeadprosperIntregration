@@ -54,12 +54,12 @@ export default function MultiStepForm() {
 
   // ── Redirect helper ──────────────────────────────────────
   const redirectUser = (url) => {
-    try {
-      window.top.location.href = url;
-    } catch (e) {
-      window.location.href = url;
-    }
-  };
+  try {
+    window.top.location.href = url;  // ✅ breaks out of iframe → redirects parent
+  } catch (e) {
+    window.location.href = url;      // ✅ fallback if iframe blocks top access
+  }
+};
 
   // ── Navigation ───────────────────────────────────────────
   const goNext = () => {
@@ -109,7 +109,8 @@ export default function MultiStepForm() {
     try {
       const res = await axios.post("/api/submit-lead", formData, {
         headers: { "Content-Type": "application/json" },
-        timeout: 120000,  // 120s — match Vercel maxDuration
+        // ✅ Fix comment
+timeout: 310000,  // 310s — must exceed backend maxDuration (300s)
       });
 
       clearInterval(msgInterval);
@@ -118,15 +119,15 @@ export default function MultiStepForm() {
       const redirectUrl = res.data?.data?.redirect_url;
 
       // CASE 1: Buyer returned redirect URL → go to lender
-      if (redirectUrl) {
-        setProcessingMsg("Application approved! Redirecting to your lender...");
-        setTimeout(() => redirectUser(redirectUrl), 1000);
-        return;
-      }
+if (redirectUrl) {
+  setProcessingMsg("Application approved! Redirecting to your lender...");
+  setTimeout(() => redirectUser(redirectUrl), 500);  // 500ms is enough
+  return;
+}
 
-      // CASE 2: No redirect URL (duplicate, rejected, no buyer) → fallback
-      setProcessingMsg("Application submitted! Redirecting...");
-      setTimeout(() => redirectUser(FALLBACK_REDIRECT_URL), 1000);
+// CASE 2: fallback
+setProcessingMsg("Application submitted! Redirecting...");
+setTimeout(() => redirectUser(FALLBACK_REDIRECT_URL), 500);
 
     } catch (err) {
       clearInterval(msgInterval);
