@@ -247,11 +247,14 @@ if (!secondPayDate || secondPayDate <= nextPayDate) {
 
     // ── Loan ────────────────────────────────────────────────
     loan_amount:              loanAmount,
+    loan_reason:              body.loan_reason || "Other",       // ✅ ADD
     approximate_credit_score: body.approximate_credit_score || "Fair",
 
     // ── Identity ─────────────────────────────────────────────
     social_security_number: ssn,
     driver_license_number:  cleanedDL,
+    driver_license_state:   body.license_state || body.state,  // ✅ ADD
+
 
     // ── Banking ──────────────────────────────────────────────
     bank_name:           body.bank_name,

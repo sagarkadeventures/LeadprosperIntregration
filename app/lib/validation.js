@@ -164,6 +164,11 @@ export function validateStep4(data) {
 // ─── Step 5 – Final ─────────────────────────────────────────
 export function validateStep5(data) {
   const errors = {};
+if (!data.approximate_credit_score)
+  errors.approximate_credit_score = "Please select your credit rating";
+
+if (!data.loan_reason)
+  errors.loan_reason = "Please select a reason for the loan";
 
   if (!data.best_time_to_call)
     errors.best_time_to_call = "Please select a preferred call time";
