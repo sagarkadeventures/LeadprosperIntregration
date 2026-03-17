@@ -117,7 +117,8 @@ export async function POST(request) {
     request.headers.get("x-real-ip")                                     ||
     request.headers.get("cf-connecting-ip")                              ||
     "0.0.0.0";
-
+ 
+    
   const ip =
   rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0"
     ? "72.43.128.55" : rawIp.replace(/\s/g, "");  // ✅ strip spaces
