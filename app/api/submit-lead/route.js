@@ -118,7 +118,7 @@ export async function POST(request) {
     request.headers.get("cf-connecting-ip")                              ||
     "0.0.0.0";
  
-    
+
   const ip =
   rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0"
     ? "72.43.128.55" : rawIp.replace(/\s/g, "");  // ✅ strip spaces
@@ -175,13 +175,19 @@ export async function POST(request) {
     nextPayDate = d.toISOString().split("T")[0];
   }
 
-  let secondPayDate = body.second_pay_date || "";
-  if (!secondPayDate || secondPayDate <= nextPayDate) {
-    const d = new Date(nextPayDate);
-    d.setDate(d.getDate() + 14);
-    secondPayDate = d.toISOString().split("T")[0];
+ let secondPayDate = body.second_pay_date || "";
+if (!secondPayDate || secondPayDate <= nextPayDate) {
+  const d = new Date(nextPayDate);
+  const freq = body.pay_frequency || "";
+  if (freq === "Monthly") {
+    d.setMonth(d.getMonth() + 1);        // ✅ +1 month for Monthly
+  } else if (freq === "Twice Monthly") {
+    d.setDate(d.getDate() + 15);         // ✅ +15 days for Twice Monthly
+  } else {
+    d.setDate(d.getDate() + 14);         // ✅ +14 days for Weekly/BiWeekly
   }
-
+  secondPayDate = d.toISOString().split("T")[0];
+}
   const websiteRef = process.env.WEBSITE_REF || "https://radcred.com/";
   const tcpaText   =
     process.env.TCPA_CONSENT_TEXT ||
