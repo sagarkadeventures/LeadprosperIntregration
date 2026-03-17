@@ -235,6 +235,8 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
     loan_amount:              loanAmount,
 approximate_credit_score: body.approximate_credit_score || "Fair",  // ✅ default to Fair
+own_car:                  body.own_car  || "Yes",                         // ✅ Do you own a car
+own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅ Derived from residence_type
 
     social_security_number:   ssn,
     driver_license_number:    cleanedDL,
