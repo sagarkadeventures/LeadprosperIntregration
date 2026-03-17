@@ -135,14 +135,19 @@ export default function MultiStepForm() {
       const lpStatus    = res.data?.data?.lp_status;
 
       // CASE 0: LP returned ERROR (bad field/invalid data) → show error to user
+      // if (lpStatus === "ERROR") {
+      //   setSubmitting(false);
+      //   toast.error(
+      //     "We could not process your application. Please check your information and try again.",
+      //     { duration: 6000 }
+      //   );
+      //   return;
+      // }
       if (lpStatus === "ERROR") {
-        setSubmitting(false);
-        toast.error(
-          "We could not process your application. Please check your information and try again.",
-          { duration: 6000 }
-        );
-        return;
-      }
+  setProcessingMsg("Application submitted! Redirecting...");
+  setTimeout(() => redirectUser(FALLBACK_REDIRECT_URL), 500);
+  return;
+}
 
       // CASE 1: Buyer returned redirect URL → go to lender
       if (redirectUrl) {

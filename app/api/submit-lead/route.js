@@ -9,6 +9,11 @@ export const maxDuration = 300;  // 300s — Vercel Pro required
 export const dynamic = "force-dynamic";
 
 // ═══════════════════════════════════════════════════════════════
+//  Fallback redirect URL
+// ═══════════════════════════════════════════════════════════════
+const FALLBACK_URL = "https://afflat3d3.com/trk/lnk/786BE43A-66BF-4957-B2D1-CEF4DF250208/?o=15451&c=918273&a=516670&k=340953338760B4DF749BD4BFBB0C1B83&l=17035&s1=radcredapplynow";
+
+// ═══════════════════════════════════════════════════════════════
 //  MongoDB — cached connection
 // ═══════════════════════════════════════════════════════════════
 let cachedClient = null;
@@ -130,8 +135,6 @@ export async function POST(request) {
   const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
 
   // ── income_source mapping ─────────────────────────────────
-  // LP accepts: Employment, Benefits, Self Employed, Unemployment, Currently Unemployed
-  // LP then maps internally to each buyer's required format
   const incomeSourceMap = {
     "Employment":           "Employment",
     "Full Time Employed":   "Employment",
@@ -201,15 +204,15 @@ export async function POST(request) {
     last_name:            body.last_name,
     email:                body.email,
     phone:                mobilePhone,
-    date_of_birth:        body.date_birth,       // LP standard field
+    date_of_birth:        body.date_birth,
     gender:               body.gender || "Other",
     title:                "Mr.",
 
     // ── Address ─────────────────────────────────────────────
-    address:              body.street,           // LP standard field
+    address:              body.street,
     city:                 body.city,
     state:                body.state,
-    zip_code:             body.post_code,        // LP standard field
+    zip_code:             body.post_code,
     ip_address:           ip,
     user_agent:           userAgent,
     landing_page_url:     websiteRef,
@@ -225,7 +228,7 @@ export async function POST(request) {
     move_here_date:  moveHereDate,
 
     // ── Employment & Income ──────────────────────────────────
-    income_source:       incomeSource,           // ✅ mapped via incomeSourceMap
+    income_source:       incomeSource,
     company_name:        body.company_name,
     job_title:           body.job_title,
     employment_started:  employmentStarted,
@@ -237,7 +240,7 @@ export async function POST(request) {
 
     // ── Loan ────────────────────────────────────────────────
     loan_amount:              loanAmount,
-    approximate_credit_score: body.approximate_credit_score || "Fair", // ✅ default Fair
+    approximate_credit_score: body.approximate_credit_score || "Fair",
 
     // ── Identity ─────────────────────────────────────────────
     social_security_number: ssn,
@@ -301,7 +304,6 @@ export async function POST(request) {
 
   // ══════════════════════════════════════════════════════════
   //  STEP 1 — SAVE TO MONGODB FIRST (before LP call)
-  //  Guarantees data is never lost even on timeout
   // ══════════════════════════════════════════════════════════
   const leadDoc = {
     created_at:      new Date(),
@@ -334,7 +336,7 @@ export async function POST(request) {
   try {
     const lpResponse = await axios.post(lpUrl, payload, {
       headers: { "Content-Type": "application/json" },
-      timeout: 295000,   // 295s — 5s buffer under Vercel's 300s maxDuration
+      timeout: 295000,
     });
 
     const lpData = lpResponse.data;
@@ -367,20 +369,19 @@ export async function POST(request) {
     else if (isError)                 finalStatus = "ERROR";
     else if (hasLeadId || isAccepted) finalStatus = lpData?.status || "ACCEPTED";
 
-    // ── STEP 3 — UPDATE MongoDB with LP response ─────────────
-    await updateLead(insertedId, {
-      lead_id:         lpData?.lead_id || lpData?.id || null,
-      status:          finalStatus,
-      redirect_url:    redirectUrl,
-      price:           price,
-      lp_raw_response: lpData,
-      lp_message:      lpData?.message || null,
-    });
-
-    console.log(`\n✅ MongoDB UPDATED — status: ${finalStatus} | redirect: ${redirectUrl} | price: ${price}\n`);
-
-    // ── Return response to frontend ───────────────────────────
+    // ── ERROR — all buyers rejected ───────────────────────────
     if (isError) {
+      await updateLead(insertedId, {
+        lead_id:         lpData?.lead_id || lpData?.id || null,
+        status:          "ERROR",
+        redirect_url:    FALLBACK_URL,   // ✅ save fallback URL
+        price:           null,
+        lp_raw_response: lpData,
+        lp_message:      lpData?.message || null,
+      });
+
+      console.log(`\n✅ MongoDB UPDATED — status: ERROR | redirect: ${FALLBACK_URL}\n`);
+
       return NextResponse.json({
         success: true,
         message: "Application submitted successfully!",
@@ -388,12 +389,24 @@ export async function POST(request) {
           lead_id:      lpData?.lead_id || lpData?.id || null,
           lp_status:    "ERROR",
           lp_message:   lpData?.message || "Unknown error",
-          redirect_url: null,
+          redirect_url: FALLBACK_URL,    // ✅ send fallback to frontend
         },
       });
     }
 
+    // ── DUPLICATED ────────────────────────────────────────────
     if (isDuplicated) {
+      await updateLead(insertedId, {
+        lead_id:         lpData?.lead_id || lpData?.id || null,
+        status:          "DUPLICATED",
+        redirect_url:    redirectUrl || FALLBACK_URL,  // ✅ fallback if no redirect
+        price:           null,
+        lp_raw_response: lpData,
+        lp_message:      lpData?.message || null,
+      });
+
+      console.log(`\n✅ MongoDB UPDATED — status: DUPLICATED | redirect: ${redirectUrl || FALLBACK_URL}\n`);
+
       return NextResponse.json({
         success:   true,
         duplicate: true,
@@ -401,23 +414,47 @@ export async function POST(request) {
         data: {
           lead_id:      lpData?.lead_id || lpData?.id || null,
           lp_status:    "DUPLICATED",
-          redirect_url: redirectUrl,
+          redirect_url: redirectUrl || FALLBACK_URL,
         },
       });
     }
 
+    // ── ACCEPTED ──────────────────────────────────────────────
     if (hasLeadId || isAccepted) {
+      await updateLead(insertedId, {
+        lead_id:         lpData?.lead_id || lpData?.id || null,
+        status:          lpData?.status || "ACCEPTED",
+        redirect_url:    redirectUrl || FALLBACK_URL,  // ✅ fallback if no redirect
+        price:           price,
+        lp_raw_response: lpData,
+        lp_message:      lpData?.message || null,
+      });
+
+      console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl || FALLBACK_URL} | price: ${price}\n`);
+
       return NextResponse.json({
         success: true,
         message: "Application submitted successfully!",
         data: {
           lead_id:      lpData?.lead_id || lpData?.id || null,
-          redirect_url: redirectUrl || null,
+          redirect_url: redirectUrl || FALLBACK_URL,
           price:        price,
           lp_status:    lpData?.status || null,
         },
       });
     }
+
+    // ── REJECTED ──────────────────────────────────────────────
+    await updateLead(insertedId, {
+      lead_id:         lpData?.lead_id || lpData?.id || null,
+      status:          "REJECTED",
+      redirect_url:    FALLBACK_URL,   // ✅ always fallback on rejection
+      price:           null,
+      lp_raw_response: lpData,
+      lp_message:      lpData?.message || null,
+    });
+
+    console.log(`\n✅ MongoDB UPDATED — status: REJECTED | redirect: ${FALLBACK_URL}\n`);
 
     return NextResponse.json({
       success: true,
@@ -425,7 +462,7 @@ export async function POST(request) {
       data: {
         lead_id:      lpData?.lead_id || lpData?.id || null,
         lp_status:    "REJECTED",
-        redirect_url: redirectUrl,
+        redirect_url: FALLBACK_URL,    // ✅ fallback to frontend
       },
     });
 
@@ -437,6 +474,7 @@ export async function POST(request) {
 
     await updateLead(insertedId, {
       status:        isTimeout ? "TIMEOUT" : "ERROR",
+      redirect_url:  null,             // null on timeout — LP never responded
       error_message: error.message,
     });
 
