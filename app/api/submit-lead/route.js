@@ -234,7 +234,8 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
     pay_frequency:       body.pay_frequency,
 
     loan_amount:              loanAmount,
-    approximate_credit_score: body.approximate_credit_score || "",
+approximate_credit_score: body.approximate_credit_score || "Fair",  // ✅ default to Fair
+
     social_security_number:   ssn,
     driver_license_number:    cleanedDL,
 
