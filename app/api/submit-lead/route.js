@@ -67,10 +67,10 @@ function printDoc(doc, insertedId) {
   console.log("  Name       :", doc.first_name, doc.last_name);
   console.log("  Email      :", doc.email);
   console.log("  Phone      :", doc.phone);
-  console.log("  DOB        :", doc.lead_payload?.date_birth);
-  console.log("  State      :", doc.state, "| Zip:", doc.lead_payload?.zip_code ?? doc.lead_payload?.post_code);
+  console.log("  DOB        :", doc.lead_payload?.date_of_birth);
+  console.log("  State      :", doc.state, "| Zip:", doc.lead_payload?.zip_code);
   console.log("  City       :", doc.city);
-  console.log("  Address    :", doc.lead_payload?.street);
+  console.log("  Address    :", doc.lead_payload?.address);
   console.log("  Residence  :", doc.lead_payload?.residence_type);
   console.log("  ─── Financial ───────────────────────────────────────────────");
   console.log("  Loan Amt   :", doc.loan_amount);
@@ -119,7 +119,7 @@ export async function POST(request) {
 
   const userAgent = request.headers.get("user-agent") || "Unknown Browser";
 
-  // ── Clean inputs ────────────────────────────────────────
+  // ── Clean inputs ─────────────────────────────────────────
   const mobilePhone      = (body.mobile_phone             || "").replace(/\D/g, "");
   const workPhone        = (body.work_phone               || "").replace(/\D/g, "") || mobilePhone;
   const ssn              = (body.social_security_number   || "").replace(/\D/g, "").padStart(9, "0");
@@ -129,24 +129,23 @@ export async function POST(request) {
   const loanAmount       = parseInt((body.loan_amount     || "0").replace(/,/g, ""), 10);
   const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
 
-  // ── income_source mapping ───────────────────────────────
-  // LP form sends "Employment" but PDV Portal needs "Full Time Employed"
-  // ── income_source mapping ───────────────────────────────
-// REMOVE the entire incomeSourceMap block and replace with:
-const incomeSourceMap = {
-  "Employment":           "Employment",
-  "Full Time Employed":   "Employment",
-  "Part Time Employed":   "Employment",
-  "Temporary Employed":   "Employment",
-  "Self Employed":        "Self Employed",
-  "Benefits":             "Benefits",
-  "Disability Benefits":  "Benefits",
-  "Unemployment":         "Unemployment",
-  "Currently Unemployed": "Unemployment",
-};
-const incomeSource = incomeSourceMap[body.income_source] || "Employment";
+  // ── income_source mapping ─────────────────────────────────
+  // LP accepts: Employment, Benefits, Self Employed, Unemployment, Currently Unemployed
+  // LP then maps internally to each buyer's required format
+  const incomeSourceMap = {
+    "Employment":           "Employment",
+    "Full Time Employed":   "Employment",
+    "Part Time Employed":   "Employment",
+    "Temporary Employed":   "Employment",
+    "Self Employed":        "Self Employed",
+    "Benefits":             "Benefits",
+    "Disability Benefits":  "Benefits",
+    "Unemployment":         "Unemployment",
+    "Currently Unemployed": "Unemployment",
+  };
+  const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
-  // ── Computed dates ──────────────────────────────────────
+  // ── Computed dates ────────────────────────────────────────
   const yearsBack = parseInt(body.years_at_address   || "0",  10);
   const moveDate  = new Date();
   moveDate.setFullYear(moveDate.getFullYear() - yearsBack);
@@ -162,7 +161,7 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
   empDate.setMonth(empDate.getMonth() - empMonths);
   const employmentStarted = empDate.toISOString().split("T")[0];
 
-  // ── Future pay dates ────────────────────────────────────
+  // ── Future pay dates ──────────────────────────────────────
   const todayStr = new Date().toISOString().split("T")[0];
 
   let nextPayDate = body.next_pay_date || "";
@@ -185,9 +184,11 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
     "By clicking 'Submit' I agree by electronic signature to be contacted by RadCred through a live agent, artificial or prerecorded voice, and automated SMS text at my residential or cellular number, dialed manually or by autodialer, and by email. I agree to the Disclaimer, Privacy Policy and Terms of Use. I authorize RadCred and its partners to use autodialers, send SMS messages, or deliver prerecorded messages to my phone number. I understand consent is not required to obtain a loan.";
 
   // ══════════════════════════════════════════════════════════
-  //  PAYLOAD
+  //  PAYLOAD — clean, no duplicate fields
+  //  LP maps internally to each buyer's required format
   // ══════════════════════════════════════════════════════════
   const payload = {
+    // ── LP credentials ──────────────────────────────────────
     lp_campaign_id: process.env.LP_CAMPAIGN_ID || "33006",
     lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
     lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
@@ -195,16 +196,20 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
     lp_subid1:      body.lp_subid1 || "RadCred",
     lp_subid2:      body.lp_subid2 || "Website",
 
+    // ── Personal ────────────────────────────────────────────
     first_name:           body.first_name,
     last_name:            body.last_name,
     email:                body.email,
     phone:                mobilePhone,
-    date_of_birth:        body.date_birth,
+    date_of_birth:        body.date_birth,       // LP standard field
     gender:               body.gender || "Other",
-    address:              body.street,
+    title:                "Mr.",
+
+    // ── Address ─────────────────────────────────────────────
+    address:              body.street,           // LP standard field
     city:                 body.city,
     state:                body.state,
-    zip_code:             body.post_code,
+    zip_code:             body.post_code,        // LP standard field
     ip_address:           ip,
     user_agent:           userAgent,
     landing_page_url:     websiteRef,
@@ -212,20 +217,17 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
     trustedform_cert_url: body.trustedform_cert_url || "",
     tcpa_text:            tcpaText,
 
-    title:           "Mr.",
-    date_birth:      body.date_birth,
+    // ── Contact ─────────────────────────────────────────────
     mobile_phone:    mobilePhone,
     home_phone:      mobilePhone,
-    street:          body.street,
-    post_code:       body.post_code,
-    house_number:    "",
+    work_phone:      workPhone,
     residence_type:  body.residence_type,
     move_here_date:  moveHereDate,
 
-    income_source:       incomeSource,  // ✅ mapped via incomeSourceMap
+    // ── Employment & Income ──────────────────────────────────
+    income_source:       incomeSource,           // ✅ mapped via incomeSourceMap
     company_name:        body.company_name,
     job_title:           body.job_title,
-    work_phone:          workPhone,
     employment_started:  employmentStarted,
     monthly_income:      monthlyIncomeRaw,
     income_payment_type: body.income_payment_type,
@@ -233,20 +235,22 @@ const incomeSource = incomeSourceMap[body.income_source] || "Employment";
     second_pay_date:     secondPayDate,
     pay_frequency:       body.pay_frequency,
 
+    // ── Loan ────────────────────────────────────────────────
     loan_amount:              loanAmount,
-approximate_credit_score: body.approximate_credit_score || "Fair",  // ✅ default to Fair
-own_car:                  body.own_car  || "Yes",                         // ✅ Do you own a car
-own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅ Derived from residence_type
+    approximate_credit_score: body.approximate_credit_score || "Fair", // ✅ default Fair
 
-    social_security_number:   ssn,
-    driver_license_number:    cleanedDL,
+    // ── Identity ─────────────────────────────────────────────
+    social_security_number: ssn,
+    driver_license_number:  cleanedDL,
 
+    // ── Banking ──────────────────────────────────────────────
     bank_name:           body.bank_name,
     bank_aba:            cleanedABA,
     bank_account_number: cleanedAcct,
     bank_type:           body.bank_type,
     bank_start:          bankStart,
 
+    // ── Compliance ───────────────────────────────────────────
     military_active: String(body.military_active || "0"),
     term_email:      "1",
     term_sms:        "1",
@@ -257,7 +261,7 @@ own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅
     sub_aff:         "",
   };
 
-  // ── Terminal: submission log ────────────────────────────
+  // ── Terminal: submission log ──────────────────────────────
   console.log("\n╔══════════════════════════════════════════════════════════════╗");
   console.log("║              LEAD SUBMISSION — LP CAMPAIGN DATA              ║");
   console.log("╚══════════════════════════════════════════════════════════════╝");
@@ -266,9 +270,9 @@ own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅
   console.log("  Name        :", payload.first_name, payload.last_name);
   console.log("  Email       :", payload.email);
   console.log("  Phone       :", payload.phone);
-  console.log("  DOB         :", payload.date_birth);
+  console.log("  DOB         :", payload.date_of_birth);
   console.log("  State       :", payload.state, "| Zip:", payload.zip_code);
-  console.log("  Address     :", payload.street, payload.city);
+  console.log("  Address     :", payload.address, payload.city);
   console.log("  Residence   :", payload.residence_type);
   console.log("  IP          :", payload.ip_address);
   console.log("  ─── Financial ───────────────────────────────────────────────");
@@ -291,11 +295,13 @@ own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅
   console.log("  ─── Compliance ──────────────────────────────────────────────");
   console.log("  Jornaya     :", payload.jornaya_leadid       || "—");
   console.log("  TrustedForm :", payload.trustedform_cert_url || "—");
+  console.log("  Military    :", payload.military_active);
   console.log("  Fields      :", Object.keys(payload).length);
   console.log("════════════════════════════════════════════════════════════════\n");
 
   // ══════════════════════════════════════════════════════════
   //  STEP 1 — SAVE TO MONGODB FIRST (before LP call)
+  //  Guarantees data is never lost even on timeout
   // ══════════════════════════════════════════════════════════
   const leadDoc = {
     created_at:      new Date(),
@@ -334,14 +340,16 @@ own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅
     const lpData = lpResponse.data;
     console.log("[LP Response]", JSON.stringify(lpData, null, 2));
 
-    // ── Parse LP response ──────────────────────────────────
+    // ── Parse LP response ────────────────────────────────────
     const hasLeadId    = !!(lpData?.lead_id || lpData?.id);
     const isAccepted   = lpData?.status === "ACCEPTED" || lpData?.code === 0;
     const isDuplicated =
       lpData?.status === "DUPLICATED" ||
       lpData?.code   === 1008         ||
       lpData?.code   === 1049;
-    const isError      = lpData?.status === "ERROR" || (lpData?.code && lpData?.code !== 0 && !isDuplicated);
+    const isError      =
+      lpData?.status === "ERROR" ||
+      (lpData?.code && lpData?.code !== 0 && !isDuplicated);
 
     const redirectUrl =
       lpData?.redirect_url      ||
@@ -359,7 +367,7 @@ own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅
     else if (isError)                 finalStatus = "ERROR";
     else if (hasLeadId || isAccepted) finalStatus = lpData?.status || "ACCEPTED";
 
-    // ── STEP 3 — UPDATE MongoDB ────────────────────────────
+    // ── STEP 3 — UPDATE MongoDB with LP response ─────────────
     await updateLead(insertedId, {
       lead_id:         lpData?.lead_id || lpData?.id || null,
       status:          finalStatus,
@@ -371,7 +379,7 @@ own_home:                 body.residence_type === "Own" ? "Yes" : "No",   // ✅
 
     console.log(`\n✅ MongoDB UPDATED — status: ${finalStatus} | redirect: ${redirectUrl} | price: ${price}\n`);
 
-    // ── Return response ────────────────────────────────────
+    // ── Return response to frontend ───────────────────────────
     if (isError) {
       return NextResponse.json({
         success: true,
