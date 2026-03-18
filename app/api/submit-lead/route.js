@@ -250,6 +250,8 @@ if (!secondPayDate || secondPayDate <= nextPayDate) {
     loan_reason:              body.loan_reason || "Other",       // ✅ ADD
     approximate_credit_score: body.approximate_credit_score || "Fair",
     own_car:                  body.own_car || "No",   // ✅ ADD THIS
+    has_debit_card:           body.has_debit_card || "No",       // ✅ ADD
+best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
 
 
     // ── Identity ─────────────────────────────────────────────
