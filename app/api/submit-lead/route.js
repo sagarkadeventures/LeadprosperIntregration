@@ -249,6 +249,8 @@ if (!secondPayDate || secondPayDate <= nextPayDate) {
     loan_amount:              loanAmount,
     loan_reason:              body.loan_reason || "Other",       // ✅ ADD
     approximate_credit_score: body.approximate_credit_score || "Fair",
+    own_car:                  body.own_car || "No",   // ✅ ADD THIS
+
 
     // ── Identity ─────────────────────────────────────────────
     social_security_number: ssn,
