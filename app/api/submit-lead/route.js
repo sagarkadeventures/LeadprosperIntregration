@@ -133,6 +133,8 @@ export async function POST(request) {
   const cleanedABA       = (body.bank_aba                 || "").replace(/\D/g, "").padStart(9, "0");
   const cleanedAcct      = (body.bank_account_number      || "").replace(/\D/g, "").padStart(4, "0");
   const loanAmount       = parseInt((body.loan_amount     || "0").replace(/,/g, ""), 10);
+  // ADD after clean inputs:
+const zipCode = (body.post_code || "").replace(/[^0-9]/g, "").slice(0, 5);
   const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
 
   // ── income_source mapping ─────────────────────────────────
@@ -219,7 +221,7 @@ if (!secondPayDate || secondPayDate <= nextPayDate) {
     address:              body.street,
     city:                 body.city,
     state:                body.state,
-    zip_code:             body.post_code,
+    zip_code: zipCode,  // ✅ always 5 digits
     ip_address:           ip,
     user_agent:           userAgent,
     landing_page_url:     websiteRef,
