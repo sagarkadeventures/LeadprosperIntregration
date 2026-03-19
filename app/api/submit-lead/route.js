@@ -255,14 +255,15 @@ export async function POST(request) {
     best_time_to_call:        body.best_time_to_call  || "Anytime",
 
     // ── Identity ─────────────────────────────────────────────
-    social_security_number: parseInt(ssn, 10),         // ✅ Numeric
+    social_security_number: ssn,                      // ✅ string
+
     driver_license_number:  cleanedDL,
     driver_license_state:   body.license_state || body.state,
 
     // ── Banking ──────────────────────────────────────────────
     bank_name:           body.bank_name,
-    bank_aba:            parseInt(cleanedABA, 10),     // ✅ Numeric
-    bank_account_number: parseInt(cleanedAcct, 10),    // ✅ Numeric
+    bank_aba:            cleanedABA,                  // ✅ "122235822"
+bank_account_number: cleanedAcct,                 // ✅ string
     bank_type:           body.bank_type,
     bank_start:          bankStart,
 
