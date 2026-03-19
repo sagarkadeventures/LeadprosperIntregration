@@ -117,11 +117,10 @@ export async function POST(request) {
     request.headers.get("x-real-ip")                                     ||
     request.headers.get("cf-connecting-ip")                              ||
     "0.0.0.0";
- 
 
   const ip =
-  rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0"
-    ? "72.43.128.55" : rawIp.replace(/\s/g, "");  // ✅ strip spaces
+    rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0"
+      ? "72.43.128.55" : rawIp.replace(/\s/g, "");  // ✅ strip spaces
 
   const userAgent = request.headers.get("user-agent") || "Unknown Browser";
 
@@ -133,8 +132,7 @@ export async function POST(request) {
   const cleanedABA       = (body.bank_aba                 || "").replace(/\D/g, "").padStart(9, "0");
   const cleanedAcct      = (body.bank_account_number      || "").replace(/\D/g, "").padStart(4, "0");
   const loanAmount       = parseInt((body.loan_amount     || "0").replace(/,/g, ""), 10);
-  // ADD after clean inputs:
-const zipCode = (body.post_code || "").replace(/[^0-9]/g, "").slice(0, 5);
+  const zipCode          = (body.post_code                || "").replace(/[^0-9]/g, "").slice(0, 5); // ✅ always 5 digits
   const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
 
   // ── income_source mapping ─────────────────────────────────
@@ -177,19 +175,20 @@ const zipCode = (body.post_code || "").replace(/[^0-9]/g, "").slice(0, 5);
     nextPayDate = d.toISOString().split("T")[0];
   }
 
- let secondPayDate = body.second_pay_date || "";
-if (!secondPayDate || secondPayDate <= nextPayDate) {
-  const d = new Date(nextPayDate);
-  const freq = body.pay_frequency || "";
-  if (freq === "Monthly") {
-    d.setMonth(d.getMonth() + 1);        // ✅ +1 month for Monthly
-  } else if (freq === "Twice Monthly") {
-    d.setDate(d.getDate() + 15);         // ✅ +15 days for Twice Monthly
-  } else {
-    d.setDate(d.getDate() + 14);         // ✅ +14 days for Weekly/BiWeekly
+  let secondPayDate = body.second_pay_date || "";
+  if (!secondPayDate || secondPayDate <= nextPayDate) {
+    const d = new Date(nextPayDate);
+    const freq = body.pay_frequency || "";
+    if (freq === "Monthly") {
+      d.setMonth(d.getMonth() + 1);        // ✅ +1 month for Monthly
+    } else if (freq === "Twice Monthly") {
+      d.setDate(d.getDate() + 15);         // ✅ +15 days for Twice Monthly
+    } else {
+      d.setDate(d.getDate() + 14);         // ✅ +14 days for Weekly/BiWeekly
+    }
+    secondPayDate = d.toISOString().split("T")[0];
   }
-  secondPayDate = d.toISOString().split("T")[0];
-}
+
   const websiteRef = process.env.WEBSITE_REF || "https://radcred.com/";
   const tcpaText   =
     process.env.TCPA_CONSENT_TEXT ||
@@ -221,7 +220,7 @@ if (!secondPayDate || secondPayDate <= nextPayDate) {
     address:              body.street,
     city:                 body.city,
     state:                body.state,
-    zip_code: zipCode,  // ✅ always 5 digits
+    zip_code:             zipCode,             // ✅ always 5 digits
     ip_address:           ip,
     user_agent:           userAgent,
     landing_page_url:     websiteRef,
@@ -249,23 +248,21 @@ if (!secondPayDate || secondPayDate <= nextPayDate) {
 
     // ── Loan ────────────────────────────────────────────────
     loan_amount:              loanAmount,
-    loan_reason:              body.loan_reason || "Other",       // ✅ ADD
+    loan_reason:              body.loan_reason        || "Other",
     approximate_credit_score: body.approximate_credit_score || "Fair",
-    own_car:                  body.own_car || "No",   // ✅ ADD THIS
-    has_debit_card:           body.has_debit_card || "No",       // ✅ ADD
-best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
-
+    own_car:                  body.own_car            || "No",
+    has_debit_card:           body.has_debit_card     || "No",
+    best_time_to_call:        body.best_time_to_call  || "Anytime",
 
     // ── Identity ─────────────────────────────────────────────
-    social_security_number: ssn,
+    social_security_number: parseInt(ssn, 10),         // ✅ Numeric
     driver_license_number:  cleanedDL,
-    driver_license_state:   body.license_state || body.state,  // ✅ ADD
-
+    driver_license_state:   body.license_state || body.state,
 
     // ── Banking ──────────────────────────────────────────────
     bank_name:           body.bank_name,
-    bank_aba:            cleanedABA,
-    bank_account_number: cleanedAcct,
+    bank_aba:            parseInt(cleanedABA, 10),     // ✅ Numeric
+    bank_account_number: parseInt(cleanedAcct, 10),    // ✅ Numeric
     bank_type:           body.bank_type,
     bank_start:          bankStart,
 
@@ -390,7 +387,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
       await updateLead(insertedId, {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          "ERROR",
-        redirect_url:    FALLBACK_URL,   // ✅ save fallback URL
+        redirect_url:    FALLBACK_URL,
         price:           null,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
@@ -405,7 +402,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
           lead_id:      lpData?.lead_id || lpData?.id || null,
           lp_status:    "ERROR",
           lp_message:   lpData?.message || "Unknown error",
-          redirect_url: FALLBACK_URL,    // ✅ send fallback to frontend
+          redirect_url: FALLBACK_URL,
         },
       });
     }
@@ -415,7 +412,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
       await updateLead(insertedId, {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          "DUPLICATED",
-        redirect_url:    redirectUrl || FALLBACK_URL,  // ✅ fallback if no redirect
+        redirect_url:    redirectUrl || FALLBACK_URL,
         price:           null,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
@@ -440,7 +437,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
       await updateLead(insertedId, {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          lpData?.status || "ACCEPTED",
-        redirect_url:    redirectUrl || FALLBACK_URL,  // ✅ fallback if no redirect
+        redirect_url:    redirectUrl || FALLBACK_URL,
         price:           price,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
@@ -464,7 +461,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
     await updateLead(insertedId, {
       lead_id:         lpData?.lead_id || lpData?.id || null,
       status:          "REJECTED",
-      redirect_url:    FALLBACK_URL,   // ✅ always fallback on rejection
+      redirect_url:    FALLBACK_URL,
       price:           null,
       lp_raw_response: lpData,
       lp_message:      lpData?.message || null,
@@ -478,7 +475,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
       data: {
         lead_id:      lpData?.lead_id || lpData?.id || null,
         lp_status:    "REJECTED",
-        redirect_url: FALLBACK_URL,    // ✅ fallback to frontend
+        redirect_url: FALLBACK_URL,
       },
     });
 
@@ -490,7 +487,7 @@ best_time_to_call:        body.best_time_to_call || "Anytime", // ✅ ADD
 
     await updateLead(insertedId, {
       status:        isTimeout ? "TIMEOUT" : "ERROR",
-      redirect_url:  null,             // null on timeout — LP never responded
+      redirect_url:  null,
       error_message: error.message,
     });
 
