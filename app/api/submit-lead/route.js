@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { MongoClient } from "mongodb";
+import { syncToKlaviyo } from "./klaviyoService";
 
 // ═══════════════════════════════════════════════════════════════
 //  Vercel serverless function config
@@ -255,15 +256,14 @@ export async function POST(request) {
     best_time_to_call:        body.best_time_to_call  || "Anytime",
 
     // ── Identity ─────────────────────────────────────────────
-    social_security_number: ssn,                      // ✅ string
-
+    social_security_number: ssn,              // ✅ string
     driver_license_number:  cleanedDL,
     driver_license_state:   body.license_state || body.state,
 
     // ── Banking ──────────────────────────────────────────────
     bank_name:           body.bank_name,
-    bank_aba:            cleanedABA,                  // ✅ "122235822"
-bank_account_number: cleanedAcct,                 // ✅ string
+    bank_aba:            cleanedABA,          // ✅ string
+    bank_account_number: cleanedAcct,         // ✅ string
     bank_type:           body.bank_type,
     bank_start:          bankStart,
 
@@ -394,6 +394,9 @@ bank_account_number: cleanedAcct,                 // ✅ string
         lp_message:      lpData?.message || null,
       });
 
+      // ✅ Klaviyo — sync to REJECTED list
+      await syncToKlaviyo({ ...payload, lp_status: "ERROR", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
+
       console.log(`\n✅ MongoDB UPDATED — status: ERROR | redirect: ${FALLBACK_URL}\n`);
 
       return NextResponse.json({
@@ -418,6 +421,9 @@ bank_account_number: cleanedAcct,                 // ✅ string
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
       });
+
+      // ✅ Klaviyo — sync to REJECTED list
+      await syncToKlaviyo({ ...payload, lp_status: "DUPLICATED", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
 
       console.log(`\n✅ MongoDB UPDATED — status: DUPLICATED | redirect: ${redirectUrl || FALLBACK_URL}\n`);
 
@@ -444,6 +450,9 @@ bank_account_number: cleanedAcct,                 // ✅ string
         lp_message:      lpData?.message || null,
       });
 
+      // ✅ Klaviyo — sync to ACCEPTED (sold) list
+      await syncToKlaviyo({ ...payload, lp_status: "ACCEPTED", lead_id: lpData?.lead_id || lpData?.id || null, price }, "accepted");
+
       console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl || FALLBACK_URL} | price: ${price}\n`);
 
       return NextResponse.json({
@@ -468,6 +477,9 @@ bank_account_number: cleanedAcct,                 // ✅ string
       lp_message:      lpData?.message || null,
     });
 
+    // ✅ Klaviyo — sync to REJECTED list
+    await syncToKlaviyo({ ...payload, lp_status: "REJECTED", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
+
     console.log(`\n✅ MongoDB UPDATED — status: REJECTED | redirect: ${FALLBACK_URL}\n`);
 
     return NextResponse.json({
@@ -491,6 +503,9 @@ bank_account_number: cleanedAcct,                 // ✅ string
       redirect_url:  null,
       error_message: error.message,
     });
+
+    // ✅ Klaviyo — sync to REJECTED list on timeout/error
+    await syncToKlaviyo({ ...payload, lp_status: isTimeout ? "TIMEOUT" : "ERROR", lead_id: null, price: null }, "rejected");
 
     console.log(`\n⚠️  MongoDB UPDATED — status: ${isTimeout ? "TIMEOUT" : "ERROR"}\n`);
 
