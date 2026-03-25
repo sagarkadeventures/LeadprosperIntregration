@@ -381,9 +381,10 @@ export async function POST(request) {
       lpData?.data?.RedirectURL  || null;
 
     const price =
-      lpData?.price       ||
-      lpData?.Price       ||
-      lpData?.data?.Price || null;
+  lpData?.price       ||
+  lpData?.Price       ||
+  lpData?.data?.Price ||
+  lpData?.data?.price || null;  // ✅ add this
 
     // ── ERROR ─────────────────────────────────────────────────
     if (isError) {
