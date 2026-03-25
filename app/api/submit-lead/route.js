@@ -212,7 +212,7 @@ export async function POST(request) {
     last_name:            body.last_name,
     email:                body.email,
     phone:                mobilePhone,
-    date_of_birth:        body.date_birth,
+    date_of_birth:        body.date_of_birth,
     gender:               body.gender || "Other",
     title:                "Mr.",
 
