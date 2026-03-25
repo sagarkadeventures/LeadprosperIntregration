@@ -1,15 +1,15 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap");
 
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 
 :root {
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
   --primary-light: #dbeafe;
+  --primary-50: #eff6ff;
+  --success: #059669;
   --bg-gradient-start: #f0f4ff;
   --bg-gradient-end: #e8f0fe;
 }
@@ -20,11 +20,168 @@
 
 body {
   font-family: "DM Sans", system-ui, sans-serif;
-    background-color: #ffffff;
+  background-color: #f8faff;
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(37, 99, 235, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, rgba(37, 99, 235, 0.04) 0%, transparent 60%);
   min-height: 100vh;
 }
 
-/* Date picker overrides */
+/* ── Page wrapper subtle pattern ─────────────────────── */
+main {
+  position: relative;
+}
+
+/* ── Form card enhanced ──────────────────────────────── */
+.form-card {
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 16px rgba(37, 99, 235, 0.06),
+    0 20px 60px rgba(0,0,0,0.06);
+  border: 1px solid rgba(37, 99, 235, 0.08);
+}
+
+/* ── Progress bar ────────────────────────────────────── */
+.progress-bar-track {
+  background: #e8f0fe;
+  border-radius: 99px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  border-radius: 99px;
+  height: 100%;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+}
+
+/* ── Step labels ─────────────────────────────────────── */
+.step-label-active {
+  color: #2563eb;
+  font-weight: 700;
+  position: relative;
+}
+.step-label-active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  background: #2563eb;
+  border-radius: 99px;
+}
+
+/* ── Input fields ────────────────────────────────────── */
+.input-focus-ring {
+  @apply transition-all duration-200 ease-out;
+  background: #fafbff;
+}
+
+.input-focus-ring:focus {
+  background: #ffffff;
+  @apply ring-2 ring-primary-500/20 border-primary-400;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.08),
+    0 1px 4px rgba(37, 99, 235, 0.1);
+}
+
+.input-focus-ring:not(:placeholder-shown):not(:focus) {
+  background: #ffffff;
+  border-color: #c7d7fe;
+}
+
+/* ── Labels ──────────────────────────────────────────── */
+label {
+  letter-spacing: -0.01em;
+}
+
+/* ── Toggle buttons (Yes/No, Rent/Own etc.) ──────────── */
+.toggle-option {
+  @apply relative cursor-pointer rounded-xl border-2 border-gray-200 px-6 py-3.5 text-center font-medium transition-all duration-200;
+  background: #fafbff;
+  letter-spacing: -0.01em;
+}
+
+.toggle-option:hover {
+  @apply border-primary-300;
+  background: #eff6ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+.toggle-option.active {
+  @apply border-primary-500 text-primary-700;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.08),
+    0 2px 8px rgba(37, 99, 235, 0.12);
+  transform: translateY(-1px);
+}
+
+.toggle-option.active::after {
+  content: "✓";
+  @apply absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-[10px] text-white;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn-press {
+  transition: all 0.15s ease;
+}
+
+.btn-press:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+}
+
+.btn-press:active {
+  transform: scale(0.97) translateY(0);
+}
+
+/* ── Section headers ─────────────────────────────────── */
+h2.section-title {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Info boxes ──────────────────────────────────────── */
+.info-box-blue {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+}
+
+.info-box-green {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+}
+
+/* ── Security footer ─────────────────────────────────── */
+.security-footer {
+  background: linear-gradient(135deg, #f8faff, #eff6ff);
+  border: 1px solid #e0e7ff;
+  border-radius: 14px;
+}
+
+/* ── Loading/Processing overlay ──────────────────────── */
+.processing-card {
+  background: white;
+  border-radius: 24px;
+  box-shadow:
+    0 4px 24px rgba(37, 99, 235, 0.1),
+    0 20px 60px rgba(0,0,0,0.08);
+}
+
+/* ── Date picker ─────────────────────────────────────── */
 .react-datepicker-wrapper {
   width: 100%;
 }
@@ -34,107 +191,195 @@ body {
 }
 
 .react-datepicker-popper {
-  z-index: 50 !important;
+  z-index: 9999 !important;
 }
 
 .react-datepicker {
   font-family: "DM Sans", system-ui, sans-serif !important;
-  border: 1px solid #e2e8f0 !important;
-  border-radius: 12px !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid #e0e7ff !important;
+  border-radius: 16px !important;
+  box-shadow:
+    0 4px 24px rgba(37, 99, 235, 0.12),
+    0 20px 60px rgba(0,0,0,0.08) !important;
   overflow: hidden;
 }
 
 .react-datepicker__header {
-  background: #2563eb !important;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
   border-bottom: none !important;
-  padding: 12px 0 8px !important;
+  padding: 14px 0 10px !important;
   border-radius: 0 !important;
 }
 
-.react-datepicker__current-month,
-.react-datepicker__day-name {
+.react-datepicker__current-month {
   color: #fff !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: -0.02em !important;
+}
+
+.react-datepicker__day-name {
+  color: rgba(255,255,255,0.85) !important;
   font-weight: 600 !important;
+  font-size: 0.75rem !important;
+}
+
+.react-datepicker__day {
+  color: #1e293b !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+.react-datepicker__day:hover {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+  border-radius: 8px !important;
+  transform: scale(1.1);
 }
 
 .react-datepicker__day--selected,
 .react-datepicker__day--keyboard-selected {
-  background: #2563eb !important;
+  background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
+  color: #ffffff !important;
   border-radius: 8px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35) !important;
 }
 
-.react-datepicker__day:hover {
-  border-radius: 8px !important;
-  background: #dbeafe !important;
+.react-datepicker__day--disabled {
+  color: #cbd5e1 !important;
+}
+
+.react-datepicker__day--outside-month {
+  color: #94a3b8 !important;
 }
 
 .react-datepicker__navigation-icon::before {
+  border-color: rgba(255,255,255,0.8) !important;
+}
+
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
   border-color: #fff !important;
 }
 
 .react-datepicker__month-select,
 .react-datepicker__year-select {
-  padding: 2px 4px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.2);
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.2);
   color: #fff;
   font-size: 0.875rem;
+  font-family: "DM Sans", sans-serif;
+  cursor: pointer;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.react-datepicker__month-select:focus,
+.react-datepicker__year-select:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.3);
 }
 
-/* Animations */
+select.react-datepicker__year-select option,
+select.react-datepicker__month-select option {
+  color: #000;
+  background: #fff;
+}
+
+/* ── Custom scrollbar ────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Animations ──────────────────────────────────────── */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.4s ease-out forwards;
+  animation: fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* Form input focus ring */
-.input-focus-ring {
-  @apply transition-all duration-200 ease-out;
-}
-.input-focus-ring:focus {
-  @apply ring-2 ring-primary-500/30 border-primary-500;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+.animate-fade-in-scale {
+  animation: fadeInScale 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* Button press */
-.btn-press:active {
-  transform: scale(0.97);
+/* ── Trust badges ────────────────────────────────────── */
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 99px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #059669;
 }
 
-/* Toggle buttons */
-.toggle-option {
-  @apply relative cursor-pointer rounded-xl border-2 border-gray-200 px-6 py-3.5 text-center font-medium transition-all duration-200;
+/* ── Step number indicator ───────────────────────────── */
+.step-indicator {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: white;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  flex-shrink: 0;
 }
-.toggle-option:hover {
-  @apply border-primary-300 bg-primary-50/50;
+
+/* ── Error messages ──────────────────────────────────── */
+.error-msg {
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.toggle-option.active {
-  @apply border-primary-500 bg-primary-50 text-primary-700;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+
+/* ── Select dropdown arrow ───────────────────────────── */
+select {
+  cursor: pointer;
 }
-.toggle-option.active::after {
-  content: "✓";
-  @apply absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-[10px] text-white;
+
+select:focus {
+  background: #ffffff;
+}
+
+/* ── Floating label effect for inputs ───────────────── */
+.input-group {
+  position: relative;
+}
+
+/* ── Mobile optimizations ────────────────────────────── */
+@media (max-width: 640px) {
+  .toggle-option {
+    padding: 12px 16px;
+    font-size: 0.875rem;
+  }
+
+  .react-datepicker {
+    font-size: 0.875rem !important;
+  }
 }
