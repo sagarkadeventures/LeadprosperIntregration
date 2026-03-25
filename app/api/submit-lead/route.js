@@ -204,8 +204,7 @@ export async function POST(request) {
     lp_campaign_id: process.env.LP_CAMPAIGN_ID || "33006",
     lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
     lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
-    // lp_action:      process.env.LP_ACTION      || "",
-    lp_action: "test", 
+    lp_action:      process.env.LP_ACTION      || "",
     lp_subid1:      body.lp_subid1 || "RadCred",
     lp_subid2:      body.lp_subid2 || "Website",
 
