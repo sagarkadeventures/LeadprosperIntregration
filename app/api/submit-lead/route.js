@@ -204,7 +204,8 @@ export async function POST(request) {
     lp_campaign_id: process.env.LP_CAMPAIGN_ID || "33006",
     lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
     lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
-    lp_action:      process.env.LP_ACTION      || "",
+    // lp_action:      process.env.LP_ACTION      || "",
+    lp_action: "test", 
     lp_subid1:      body.lp_subid1 || "RadCred",
     lp_subid2:      body.lp_subid2 || "Website",
 
@@ -368,10 +369,20 @@ export async function POST(request) {
       (lpData?.code && lpData?.code !== 0 && !isDuplicated);
 
     const redirectUrl =
-      lpData?.redirect_url      ||
-      lpData?.redirect          ||
-      lpData?.RedirectURL       ||
-      lpData?.data?.RedirectURL || null;
+      lpData?.redirect_url          ||
+      lpData?.redirect              ||
+      lpData?.RedirectURL           ||
+      lpData?.data?.redirect_url    ||   // ✅ LP nested lowercase
+      lpData?.data?.RedirectURL     || null;
+
+    console.log("[LP redirect_url raw]", JSON.stringify({
+      "lpData.redirect_url":       lpData?.redirect_url,
+      "lpData.redirect":           lpData?.redirect,
+      "lpData.RedirectURL":        lpData?.RedirectURL,
+      "lpData.data?.redirect_url": lpData?.data?.redirect_url,
+      "lpData.data?.RedirectURL":  lpData?.data?.RedirectURL,
+      "resolved":                  redirectUrl,
+    }));
 
     const price =
       lpData?.price       ||

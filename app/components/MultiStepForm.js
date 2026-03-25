@@ -53,28 +53,50 @@ export default function MultiStepForm() {
   );
 
   // ── Redirect helper ──────────────────────────────────────
-  // Uses real anchor click — cannot be intercepted by Next.js dev router,
-  // browser popup policy, or any JS framework.
-  // In iframe: breaks out to parent via window.top
+  // Safe cross-origin redirect:
+  //   1. If NOT in iframe  → real anchor click with target="_top"
+  //   2. If in iframe (same-origin) → window.top.location.href
+  //   3. If in iframe (cross-origin) → postMessage to parent, then
+  //      fall back to navigating the iframe itself so the user
+  //      still lands on the right page.
   const redirectUser = (url) => {
-    try {
-      if (window.top !== window.self) {
-        // ✅ Inside iframe (radcred.com/apply-now) — break out to parent
-        window.top.location.href = url;
-      } else {
-        // ✅ localhost + standalone — real anchor click bypasses Next.js router
-        const a = document.createElement("a");
-        a.href = url;
-        a.target = "_top";
-        a.rel = "noopener noreferrer";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-    } catch (e) {
-      // ✅ Final fallback
-      window.location.href = url;
+    console.log("[redirectUser] Redirecting to:", url);
+
+    const inIframe = (() => {
+      try { return window.top !== window.self; }
+      catch { return true; }
+    })();
+
+    if (!inIframe) {
+      // ✅ Standalone / localhost — anchor click bypasses Next.js router
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_top";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
     }
+
+    // ── Inside iframe ──────────────────────────────────────
+    // Strategy 1: postMessage to parent so radcred.com can redirect
+    try {
+      window.parent.postMessage({ type: "RADCRED_REDIRECT", url }, "*");
+    } catch (e) {
+      console.warn("[redirectUser] postMessage failed:", e);
+    }
+
+    // Strategy 2: Try direct top-level navigation (works if same-origin)
+    try {
+      window.top.location.href = url;
+      return; // ✅ worked — stop here
+    } catch (e) {
+      // Cross-origin — strategy 3 below
+    }
+
+    // Strategy 3: Navigate the iframe itself so user still reaches the URL
+    window.location.href = url;
   };
 
   // ── Navigation ───────────────────────────────────────────
