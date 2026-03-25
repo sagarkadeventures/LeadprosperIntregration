@@ -121,7 +121,7 @@ export async function POST(request) {
 
   const ip =
     rawIp === "::1" || rawIp === "127.0.0.1" || rawIp === "0.0.0.0"
-      ? "72.43.128.55" : rawIp.replace(/\s/g, "");  // ✅ strip spaces
+      ? "72.43.128.55" : rawIp.replace(/\s/g, "");
 
   const userAgent = request.headers.get("user-agent") || "Unknown Browser";
 
@@ -133,7 +133,7 @@ export async function POST(request) {
   const cleanedABA       = (body.bank_aba                 || "").replace(/\D/g, "").padStart(9, "0");
   const cleanedAcct      = (body.bank_account_number      || "").replace(/\D/g, "").padStart(4, "0");
   const loanAmount       = parseInt((body.loan_amount     || "0").replace(/,/g, ""), 10);
-  const zipCode          = (body.post_code                || "").replace(/[^0-9]/g, "").slice(0, 5); // ✅ always 5 digits
+  const zipCode          = (body.post_code                || "").replace(/[^0-9]/g, "").slice(0, 5);
   const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
 
   // ── income_source mapping ─────────────────────────────────
@@ -181,11 +181,11 @@ export async function POST(request) {
     const d = new Date(nextPayDate);
     const freq = body.pay_frequency || "";
     if (freq === "Monthly") {
-      d.setMonth(d.getMonth() + 1);        // ✅ +1 month for Monthly
+      d.setMonth(d.getMonth() + 1);
     } else if (freq === "Twice Monthly") {
-      d.setDate(d.getDate() + 15);         // ✅ +15 days for Twice Monthly
+      d.setDate(d.getDate() + 15);
     } else {
-      d.setDate(d.getDate() + 14);         // ✅ +14 days for Weekly/BiWeekly
+      d.setDate(d.getDate() + 14);
     }
     secondPayDate = d.toISOString().split("T")[0];
   }
@@ -196,15 +196,14 @@ export async function POST(request) {
     "By clicking 'Submit' I agree by electronic signature to be contacted by RadCred through a live agent, artificial or prerecorded voice, and automated SMS text at my residential or cellular number, dialed manually or by autodialer, and by email. I agree to the Disclaimer, Privacy Policy and Terms of Use. I authorize RadCred and its partners to use autodialers, send SMS messages, or deliver prerecorded messages to my phone number. I understand consent is not required to obtain a loan.";
 
   // ══════════════════════════════════════════════════════════
-  //  PAYLOAD — clean, no duplicate fields
-  //  LP maps internally to each buyer's required format
+  //  PAYLOAD
   // ══════════════════════════════════════════════════════════
   const payload = {
     // ── LP credentials ──────────────────────────────────────
     lp_campaign_id: process.env.LP_CAMPAIGN_ID || "33006",
     lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
     lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
-    lp_action:      process.env.LP_ACTION      || "",
+    lp_action:      process.env.LP_ACTION      || "",           // ✅ live — empty string
     lp_subid1:      body.lp_subid1 || "RadCred",
     lp_subid2:      body.lp_subid2 || "Website",
 
@@ -221,7 +220,7 @@ export async function POST(request) {
     address:              body.street,
     city:                 body.city,
     state:                body.state,
-    zip_code:             zipCode,             // ✅ always 5 digits
+    zip_code:             zipCode,
     ip_address:           ip,
     user_agent:           userAgent,
     landing_page_url:     websiteRef,
@@ -256,14 +255,14 @@ export async function POST(request) {
     best_time_to_call:        body.best_time_to_call  || "Anytime",
 
     // ── Identity ─────────────────────────────────────────────
-    social_security_number: ssn,              // ✅ string
+    social_security_number: ssn,
     driver_license_number:  cleanedDL,
     driver_license_state:   body.license_state || body.state,
 
     // ── Banking ──────────────────────────────────────────────
     bank_name:           body.bank_name,
-    bank_aba:            cleanedABA,          // ✅ string
-    bank_account_number: cleanedAcct,         // ✅ string
+    bank_aba:            cleanedABA,
+    bank_account_number: cleanedAcct,
     bank_type:           body.bank_type,
     bank_start:          bankStart,
 
@@ -325,6 +324,8 @@ export async function POST(request) {
     lead_id:         null,
     status:          "PENDING",
     redirect_url:    null,
+    redirected_to:   null,   // ✅ tracks actual URL user was sent to
+    lp_response_ms:  null,   // ✅ tracks how long LP took to respond
     price:           null,
     first_name:      payload.first_name,
     last_name:       payload.last_name,
@@ -347,14 +348,19 @@ export async function POST(request) {
   const lpUrl = process.env.LP_DIRECT_POST_URL || "https://api.leadprosper.io/direct_post";
   console.log("[submit-lead] Sending →", lpUrl);
 
+  const lpStart = Date.now(); // ✅ start timer
+
   try {
     const lpResponse = await axios.post(lpUrl, payload, {
       headers: { "Content-Type": "application/json" },
       timeout: 295000,
     });
 
-    const lpData = lpResponse.data;
+    const lpData        = lpResponse.data;
+    const lp_response_ms = Date.now() - lpStart;
+
     console.log("[LP Response]", JSON.stringify(lpData, null, 2));
+    console.log("[LP Timing] Response took:", lp_response_ms, "ms");
 
     // ── Parse LP response ────────────────────────────────────
     const hasLeadId    = !!(lpData?.lead_id || lpData?.id);
@@ -368,46 +374,32 @@ export async function POST(request) {
       (lpData?.code && lpData?.code !== 0 && !isDuplicated);
 
     const redirectUrl =
-      lpData?.redirect_url          ||
-      lpData?.redirect              ||
-      lpData?.RedirectURL           ||
-      lpData?.data?.redirect_url    ||   // ✅ LP nested lowercase
-      lpData?.data?.RedirectURL     || null;
-
-    console.log("[LP redirect_url raw]", JSON.stringify({
-      "lpData.redirect_url":       lpData?.redirect_url,
-      "lpData.redirect":           lpData?.redirect,
-      "lpData.RedirectURL":        lpData?.RedirectURL,
-      "lpData.data?.redirect_url": lpData?.data?.redirect_url,
-      "lpData.data?.RedirectURL":  lpData?.data?.RedirectURL,
-      "resolved":                  redirectUrl,
-    }));
+      lpData?.redirect_url       ||
+      lpData?.redirect           ||
+      lpData?.RedirectURL        ||
+      lpData?.data?.redirect_url ||  // ✅ LP nested lowercase
+      lpData?.data?.RedirectURL  || null;
 
     const price =
       lpData?.price       ||
       lpData?.Price       ||
       lpData?.data?.Price || null;
 
-    let finalStatus = "REJECTED";
-    if (isDuplicated)                 finalStatus = "DUPLICATED";
-    else if (isError)                 finalStatus = "ERROR";
-    else if (hasLeadId || isAccepted) finalStatus = lpData?.status || "ACCEPTED";
-
-    // ── ERROR — all buyers rejected ───────────────────────────
+    // ── ERROR ─────────────────────────────────────────────────
     if (isError) {
       await updateLead(insertedId, {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          "ERROR",
         redirect_url:    FALLBACK_URL,
+        redirected_to:   FALLBACK_URL,
+        lp_response_ms,
         price:           null,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
       });
 
-      // ✅ Klaviyo — sync to REJECTED list
       await syncToKlaviyo({ ...payload, lp_status: "ERROR", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
-
-      console.log(`\n✅ MongoDB UPDATED — status: ERROR | redirect: ${FALLBACK_URL}\n`);
+      console.log(`\n✅ MongoDB UPDATED — status: ERROR | redirect: ${FALLBACK_URL} | time: ${lp_response_ms}ms\n`);
 
       return NextResponse.json({
         success: true,
@@ -427,15 +419,15 @@ export async function POST(request) {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          "DUPLICATED",
         redirect_url:    redirectUrl || FALLBACK_URL,
+        redirected_to:   redirectUrl || FALLBACK_URL,
+        lp_response_ms,
         price:           null,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
       });
 
-      // ✅ Klaviyo — sync to REJECTED list
       await syncToKlaviyo({ ...payload, lp_status: "DUPLICATED", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
-
-      console.log(`\n✅ MongoDB UPDATED — status: DUPLICATED | redirect: ${redirectUrl || FALLBACK_URL}\n`);
+      console.log(`\n✅ MongoDB UPDATED — status: DUPLICATED | redirect: ${redirectUrl || FALLBACK_URL} | time: ${lp_response_ms}ms\n`);
 
       return NextResponse.json({
         success:   true,
@@ -455,15 +447,15 @@ export async function POST(request) {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          lpData?.status || "ACCEPTED",
         redirect_url:    redirectUrl || FALLBACK_URL,
+        redirected_to:   redirectUrl || FALLBACK_URL,
+        lp_response_ms,
         price:           price,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
       });
 
-      // ✅ Klaviyo — sync to ACCEPTED (sold) list
       await syncToKlaviyo({ ...payload, lp_status: "ACCEPTED", lead_id: lpData?.lead_id || lpData?.id || null, price }, "accepted");
-
-      console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl || FALLBACK_URL} | price: ${price}\n`);
+      console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl || FALLBACK_URL} | price: ${price} | time: ${lp_response_ms}ms\n`);
 
       return NextResponse.json({
         success: true,
@@ -482,15 +474,15 @@ export async function POST(request) {
       lead_id:         lpData?.lead_id || lpData?.id || null,
       status:          "REJECTED",
       redirect_url:    FALLBACK_URL,
+      redirected_to:   FALLBACK_URL,
+      lp_response_ms,
       price:           null,
       lp_raw_response: lpData,
       lp_message:      lpData?.message || null,
     });
 
-    // ✅ Klaviyo — sync to REJECTED list
     await syncToKlaviyo({ ...payload, lp_status: "REJECTED", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
-
-    console.log(`\n✅ MongoDB UPDATED — status: REJECTED | redirect: ${FALLBACK_URL}\n`);
+    console.log(`\n✅ MongoDB UPDATED — status: REJECTED | redirect: ${FALLBACK_URL} | time: ${lp_response_ms}ms\n`);
 
     return NextResponse.json({
       success: true,
@@ -503,21 +495,22 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    const lp_response_ms = Date.now() - lpStart;
     const isTimeout =
       error.code === "ECONNABORTED" || error.message?.includes("timeout");
 
-    console.error(`\n[submit-lead] ${isTimeout ? "TIMEOUT" : "ERROR"}:`, error.message);
+    console.error(`\n[submit-lead] ${isTimeout ? "TIMEOUT" : "ERROR"} after ${lp_response_ms}ms:`, error.message);
 
     await updateLead(insertedId, {
-      status:        isTimeout ? "TIMEOUT" : "ERROR",
-      redirect_url:  null,
-      error_message: error.message,
+      status:          isTimeout ? "TIMEOUT" : "ERROR",
+      redirect_url:    FALLBACK_URL,
+      redirected_to:   FALLBACK_URL,
+      lp_response_ms,
+      error_message:   error.message,
     });
 
-    // ✅ Klaviyo — sync to REJECTED list on timeout/error
     await syncToKlaviyo({ ...payload, lp_status: isTimeout ? "TIMEOUT" : "ERROR", lead_id: null, price: null }, "rejected");
-
-    console.log(`\n⚠️  MongoDB UPDATED — status: ${isTimeout ? "TIMEOUT" : "ERROR"}\n`);
+    console.log(`\n⚠️  MongoDB UPDATED — status: ${isTimeout ? "TIMEOUT" : "ERROR"} | time: ${lp_response_ms}ms\n`);
 
     return NextResponse.json({
       success: true,
@@ -526,7 +519,7 @@ export async function POST(request) {
       data: {
         lead_id:      null,
         lp_status:    isTimeout ? "TIMEOUT" : "ERROR",
-        redirect_url: null,
+        redirect_url: FALLBACK_URL,
       },
     });
   }
