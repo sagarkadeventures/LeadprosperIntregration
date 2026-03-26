@@ -14,10 +14,20 @@ export default function FormPage() {
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 py-8 px-4">
       <div className="mx-auto max-w-2xl">
         {/* Logo / Brand */}
-        {/* <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-primary-600">RadCred</h1>
-          <p className="text-sm text-gray-500 mt-1">Fast • Secure • Trusted</p>
-        </div> */}
+        {/* Logo / Brand */}
+<div className="mb-8 text-center logo-top-section">
+  <img
+    src="https://radcred.com/media/2022/11/RadCred-Logo-Small-Size.png"
+    alt="RadCred"
+    className="mx-auto h-10 w-auto"
+  />
+  <img
+    src="https://radcred.com/media/2025/08/characterfaceexpressionMOV2-ezgif.com-video-to-gif-converter-2.gif"
+    alt=""
+    className="mx-auto mt-2"
+    style={{ width: "70px" }}
+  />
+</div>
 
         {/* Form Card */}
         <div className="rounded-2xl bg-white shadow-xl shadow-blue-100/50 border border-gray-100 p-6 sm:p-8">
