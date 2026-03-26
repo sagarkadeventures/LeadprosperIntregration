@@ -53,22 +53,18 @@ export default function MultiStepForm() {
   );
 
   // ── Redirect helper ──────────────────────────────────────
-  // Safe cross-origin redirect:
-  //   1. If NOT in iframe  → real anchor click with target="_top"
-  //   2. If in iframe (same-origin) → window.top.location.href
-  //   3. If in iframe (cross-origin) → postMessage to parent, then
-  //      fall back to navigating the iframe itself so the user
-  //      still lands on the right page.
+  // Uses real anchor click — cannot be intercepted by Next.js dev router,
+  // browser popup policy, or any JS framework.
+  // In iframe: breaks out to parent via window.top
   const redirectUser = (url) => {
     console.log("[redirectUser] Redirecting to:", url);
-
-    const inIframe = (() => {
-      try { return window.top !== window.self; }
-      catch { return true; }
-    })();
-
-    if (!inIframe) {
-      // ✅ Standalone / localhost — anchor click bypasses Next.js router
+    // ✅ Anchor click with target="_top" works in ALL cases:
+    //    - standalone / localhost
+    //    - iframe with allow="top-navigation"
+    // window.top.location.href is silently blocked by modern browsers
+    // without throwing an error, so try/catch does NOT help.
+    // Anchor click is the correct way to use the top-navigation permission.
+    try {
       const a = document.createElement("a");
       a.href = url;
       a.target = "_top";
@@ -76,27 +72,9 @@ export default function MultiStepForm() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      return;
-    }
-
-    // ── Inside iframe ──────────────────────────────────────
-    // Strategy 1: postMessage to parent so radcred.com can redirect
-    try {
-      window.parent.postMessage({ type: "RADCRED_REDIRECT", url }, "*");
     } catch (e) {
-      console.warn("[redirectUser] postMessage failed:", e);
+      window.location.href = url;
     }
-
-    // Strategy 2: Try direct top-level navigation (works if same-origin)
-    try {
-      window.top.location.href = url;
-      return; // ✅ worked — stop here
-    } catch (e) {
-      // Cross-origin — strategy 3 below
-    }
-
-    // Strategy 3: Navigate the iframe itself so user still reaches the URL
-    window.location.href = url;
   };
 
   // ── Navigation ───────────────────────────────────────────
