@@ -94,7 +94,7 @@ export const LOAN_REASONS = [
 ];
 
 export const YEARS_AT_ADDRESS = [
-  { value: "0", label: "Less than 1 year" },
+  { value: "1", label: "Less than 1 year" },
   { value: "1", label: "1 year" },
   { value: "2", label: "2 years" },
   { value: "3", label: "3 years" },
