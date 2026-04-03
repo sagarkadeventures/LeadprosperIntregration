@@ -15,11 +15,6 @@ export const dynamic = "force-dynamic";
 const FALLBACK_URL = "https://afflat3d3.com/trk/lnk/786BE43A-66BF-4957-B2D1-CEF4DF250208/?o=15451&c=918273&a=516670&k=340953338760B4DF749BD4BFBB0C1B83&l=17035&s1=radcredapplynow";
 
 // ═══════════════════════════════════════════════════════════════
-//  Broken redirect domains — user will get FALLBACK instead
-// ═══════════════════════════════════════════════════════════════
-const BROKEN_DOMAINS = ["google.com", "google.co", "bing.com", "yahoo.com"];
-
-// ═══════════════════════════════════════════════════════════════
 //  MongoDB — cached connection
 // ═══════════════════════════════════════════════════════════════
 let cachedClient = null;
@@ -64,57 +59,6 @@ async function updateLead(insertedId, update) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  FIX 1 — Validate redirect URL (catch google.com broken links)
-// ═══════════════════════════════════════════════════════════════
-async function validateRedirectUrl(url) {
-  if (!url) return false;
-  try {
-    const response = await axios.get(url, {
-      timeout: 4000,
-      maxRedirects: 5,
-      validateStatus: () => true,
-    });
-    const finalUrl =
-      response.request?.res?.responseUrl ||
-      response.request?.responseURL ||
-      url;
-    console.log("[Redirect Validate] Original:", url, "→ Final:", finalUrl);
-    const isBroken = BROKEN_DOMAINS.some((d) => finalUrl.includes(d));
-    if (isBroken) {
-      console.log("[Redirect Validate] ❌ BROKEN — resolves to:", finalUrl);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.log("[Redirect Validate] ❌ Failed:", err.message);
-    return false;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  FIX 2 — On duplicate, recover original accepted redirect URL
-// ═══════════════════════════════════════════════════════════════
-async function getExistingLeadRedirect(email, phone) {
-  try {
-    const client = await getMongoClient();
-    const col = client.db("leadprosper").collection("leadprosper");
-    const existing = await col.findOne(
-      {
-        $or: [{ email }, { phone }],
-        status: "ACCEPTED",
-        redirect_url: { $exists: true, $ne: null, $ne: FALLBACK_URL },
-      },
-      { sort: { created_at: -1 } }
-    );
-    console.log("[Duplicate Redirect] Found:", existing?.redirect_url ?? "none");
-    return existing?.redirect_url || null;
-  } catch (err) {
-    console.error("[Duplicate Redirect] Error:", err.message);
-    return null;
-  }
-}
-
 function printDoc(doc, insertedId) {
   console.log("\n╔══════════════════════════════════════════════════════════════╗");
   console.log("║                  MONGODB — DOCUMENT SAVED                   ║");
@@ -125,7 +69,6 @@ function printDoc(doc, insertedId) {
   console.log("  lead_id    :", doc.lead_id    ?? "—");
   console.log("  redirect   :", doc.redirect_url ?? "—");
   console.log("  price      :", doc.price      ?? "—");
-  console.log("  age        :", doc.applicant_age ?? "—");
   console.log("  ─── Applicant ───────────────────────────────────────────────");
   console.log("  Name       :", doc.first_name, doc.last_name);
   console.log("  Email      :", doc.email);
@@ -153,10 +96,6 @@ function printDoc(doc, insertedId) {
   const acct = doc.lead_payload?.bank_account_number?.toString() || "";
   console.log("  ABA        :", aba  ? aba.slice(0, 3)  + "******" : "—");
   console.log("  Acct       :", acct ? "****" + acct.slice(-4)     : "—");
-  console.log("  ─── Xanadu Fields ───────────────────────────────────────────");
-  console.log("  Xanadu DOB :", doc.lead_payload?.xanadu_date_of_birth ?? "—");
-  console.log("  Xanadu Bank:", doc.lead_payload?.xanadu_bank_type     ?? "—");
-  console.log("  Xanadu Res :", doc.lead_payload?.xanadu_residence_type ?? "—");
   console.log("  ─── LP Response ─────────────────────────────────────────────");
   console.log("  Raw        :", JSON.stringify(doc.lp_raw_response ?? {}));
   if (doc.error_message) console.log("  Error      :", doc.error_message);
@@ -193,20 +132,9 @@ export async function POST(request) {
   const cleanedDL        = (body.driver_license_number    || "").trim().padStart(4, "0");
   const cleanedABA       = (body.bank_aba                 || "").replace(/\D/g, "").padStart(9, "0");
   const cleanedAcct      = (body.bank_account_number      || "").replace(/\D/g, "").padStart(4, "0");
-
-  // ── FIX 3 — loan_amount safe parse (handles number OR string) ─
-  const loanAmount = parseInt(
-    String(body.loan_amount || "0").replace(/,/g, ""), 10
-  );
-
-  // ── FIX 4 — zip_code fallback (post_code OR zip_code OR zipcode) ─
-  const zipCode = (
-    body.post_code || body.zip_code || body.zipcode || ""
-  ).replace(/[^0-9]/g, "").slice(0, 5);
-
-  const monthlyIncomeRaw = parseFloat(
-    String(body.monthly_income || "0").replace(/,/g, "")
-  );
+  const loanAmount       = parseInt((body.loan_amount     || "0").replace(/,/g, ""), 10);
+  const zipCode          = (body.post_code                || "").replace(/[^0-9]/g, "").slice(0, 5);
+  const monthlyIncomeRaw = parseFloat((body.monthly_income|| "0").replace(/,/g, ""));
 
   // ── income_source mapping ─────────────────────────────────
   const incomeSourceMap = {
@@ -222,52 +150,12 @@ export async function POST(request) {
   };
   const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
-  // ── FIX 5 — DOB: parse safely, compute age ───────────────
-  const dobRaw = body.date_birth || body.date_of_birth || "";
-  const dobParsed = dobRaw ? new Date(dobRaw) : null;
-  const dobValid  = dobParsed && !isNaN(dobParsed.getTime());
-
-  // Standard format for LP/PDV (YYYY-MM-DD)
-  const dateOfBirth = dobValid
-    ? dobParsed.toISOString().split("T")[0]
-    : "";
-
-  // Xanadu format (MM/DD/YYYY)
-  const xanaduDateOfBirth = dobValid
-    ? (() => {
-        const mm   = String(dobParsed.getMonth() + 1).padStart(2, "0");
-        const dd   = String(dobParsed.getDate()).padStart(2, "0");
-        const yyyy = dobParsed.getFullYear();
-        return `${mm}/${dd}/${yyyy}`;
-      })()
-    : "";
-
-  // Age calculation
-  const ageYears = dobValid
-    ? Math.floor((Date.now() - dobParsed) / (365.25 * 24 * 60 * 60 * 1000))
-    : null;
-
-  console.log("[DOB]", { raw: dobRaw, parsed: dateOfBirth, xanadu: xanaduDateOfBirth, age: ageYears });
-
-  // ── FIX 6 — Xanadu bank type mapping (Checking→C, Savings→S) ─
-  const xanaduBankType =
-    body.bank_type === "Checking" ? "C" :
-    body.bank_type === "Savings"  ? "S" :
-    body.bank_type || "C";
-
-  // ── FIX 7 — Xanadu residence type mapping (uppercase) ────
-  const xanaduResidenceType =
-    (body.residence_type || "").toUpperCase() === "OWN"  ? "OWN"  :
-    (body.residence_type || "").toUpperCase() === "RENT" ? "RENT" :
-    body.residence_type === "Own"  ? "OWN"  :
-    body.residence_type === "Rent" ? "RENT" : "RENT";
-
   // ── Computed dates ────────────────────────────────────────
-  const yearsBack  = parseInt(body.years_at_address || "1", 10);
-  const safeYears  = yearsBack === 0 ? 1 : yearsBack;
-  const moveDate   = new Date();
-  moveDate.setFullYear(moveDate.getFullYear() - safeYears);
-  const moveHereDate = moveDate.toISOString().split("T")[0];
+  const yearsBack = parseInt(body.years_at_address || "1", 10);
+const safeYears = yearsBack === 0 ? 1 : yearsBack; // ✅ minimum 1 year
+const moveDate  = new Date();
+moveDate.setFullYear(moveDate.getFullYear() - safeYears); // ✅ use safeYears
+const moveHereDate = moveDate.toISOString().split("T")[0];
 
   const monthsBack = parseInt(body.months_at_bank    || "12", 10);
   const bankDate   = new Date();
@@ -316,7 +204,7 @@ export async function POST(request) {
     lp_campaign_id: process.env.LP_CAMPAIGN_ID || "33006",
     lp_supplier_id: process.env.LP_SUPPLIER_ID || "105821",
     lp_key:         process.env.LP_KEY         || "z6yysnz7xflr0j",
-    lp_action:      process.env.LP_ACTION      || "",
+    lp_action:      process.env.LP_ACTION      || "",           // ✅ live — empty string
     lp_subid1:      body.lp_subid1 || "RadCred",
     lp_subid2:      body.lp_subid2 || "Website",
 
@@ -325,7 +213,7 @@ export async function POST(request) {
     last_name:            body.last_name,
     email:                body.email,
     phone:                mobilePhone,
-    date_of_birth:        dateOfBirth,          // ✅ FIX: always YYYY-MM-DD
+    date_of_birth:        body.date_birth,
     gender:               body.gender || "Other",
     title:                "Mr.",
 
@@ -333,7 +221,7 @@ export async function POST(request) {
     address:              body.street,
     city:                 body.city,
     state:                body.state,
-    zip_code:             zipCode,              // ✅ FIX: fallback chain
+    zip_code:             zipCode,
     ip_address:           ip,
     user_agent:           userAgent,
     landing_page_url:     websiteRef,
@@ -379,12 +267,6 @@ export async function POST(request) {
     bank_type:           body.bank_type,
     bank_start:          bankStart,
 
-    // ── Xanadu-specific mapped fields ─────────────────────────
-    // LP uses these to map to Xanadu's exact field format
-    xanadu_date_of_birth:  xanaduDateOfBirth,  // ✅ MM/DD/YYYY for Xanadu
-    xanadu_bank_type:      xanaduBankType,     // ✅ C or S for Xanadu
-    xanadu_residence_type: xanaduResidenceType,// ✅ OWN or RENT uppercase
-
     // ── Compliance ───────────────────────────────────────────
     military_active: String(body.military_active || "0"),
     term_email:      "1",
@@ -405,12 +287,10 @@ export async function POST(request) {
   console.log("  Name        :", payload.first_name, payload.last_name);
   console.log("  Email       :", payload.email);
   console.log("  Phone       :", payload.phone);
-  console.log("  DOB (LP)    :", payload.date_of_birth);
-  console.log("  DOB (Xanadu):", payload.xanadu_date_of_birth);
-  console.log("  Age         :", ageYears, "years");
+  console.log("  DOB         :", payload.date_of_birth);
   console.log("  State       :", payload.state, "| Zip:", payload.zip_code);
   console.log("  Address     :", payload.address, payload.city);
-  console.log("  Residence   :", payload.residence_type, "| Xanadu:", payload.xanadu_residence_type);
+  console.log("  Residence   :", payload.residence_type);
   console.log("  IP          :", payload.ip_address);
   console.log("  ─── Financial ───────────────────────────────────────────────");
   console.log("  Loan Amt    :", payload.loan_amount);
@@ -425,7 +305,7 @@ export async function POST(request) {
   console.log("  Credit      :", payload.approximate_credit_score);
   console.log("  ─── Banking ─────────────────────────────────────────────────");
   console.log("  Bank Name   :", payload.bank_name);
-  console.log("  Bank Type   :", payload.bank_type, "| Xanadu:", payload.xanadu_bank_type);
+  console.log("  Bank Type   :", payload.bank_type);
   console.log("  ABA         :", cleanedABA  ? cleanedABA.slice(0, 3)  + "******" : "MISSING!");
   console.log("  Acct        :", cleanedAcct ? "****" + cleanedAcct.slice(-4)      : "MISSING!");
   console.log("  SSN         :", ssn         ? "***"  + ssn.slice(-4)              : "MISSING!");
@@ -445,10 +325,9 @@ export async function POST(request) {
     lead_id:         null,
     status:          "PENDING",
     redirect_url:    null,
-    redirected_to:   null,
-    lp_response_ms:  null,
+    redirected_to:   null,   // ✅ tracks actual URL user was sent to
+    lp_response_ms:  null,   // ✅ tracks how long LP took to respond
     price:           null,
-    applicant_age:   ageYears,                 // ✅ FIX: save age for analytics
     first_name:      payload.first_name,
     last_name:       payload.last_name,
     email:           payload.email,
@@ -461,28 +340,6 @@ export async function POST(request) {
     lp_raw_response: null,
   };
 
-  // ── FIX 8 — Block under-18 leads before posting to LP ────
-  if (ageYears !== null && ageYears < 18) {
-    console.log("[Age Block] ❌ Applicant under 18:", ageYears, "— not posting to LP");
-    const insertedIdUnder18 = await insertLead({ ...leadDoc, status: "REJECTED" });
-    await updateLead(insertedIdUnder18, {
-      status:       "REJECTED",
-      redirect_url: FALLBACK_URL,
-      redirected_to: FALLBACK_URL,
-      lp_message:   "Applicant under 18",
-    });
-    return NextResponse.json({
-      success: true,
-      message: "Application submitted successfully!",
-      data: { redirect_url: FALLBACK_URL, lp_status: "REJECTED" },
-    });
-  }
-
-  // ── Age warning for Xanadu range (25–55) — log only, don't block ─
-  if (ageYears !== null && (ageYears < 25 || ageYears > 55)) {
-    console.log("[Age Warning] ⚠️ Outside Xanadu range 25-55:", ageYears, "— PDV/RoundSky may still accept");
-  }
-
   const insertedId = await insertLead(leadDoc);
   printDoc(leadDoc, insertedId);
 
@@ -492,7 +349,7 @@ export async function POST(request) {
   const lpUrl = process.env.LP_DIRECT_POST_URL || "https://api.leadprosper.io/direct_post";
   console.log("[submit-lead] Sending →", lpUrl);
 
-  const lpStart = Date.now();
+  const lpStart = Date.now(); // ✅ start timer
 
   try {
     const lpResponse = await axios.post(lpUrl, payload, {
@@ -500,7 +357,7 @@ export async function POST(request) {
       timeout: 295000,
     });
 
-    const lpData         = lpResponse.data;
+    const lpData        = lpResponse.data;
     const lp_response_ms = Date.now() - lpStart;
 
     console.log("[LP Response]", JSON.stringify(lpData, null, 2));
@@ -513,43 +370,22 @@ export async function POST(request) {
       lpData?.status === "DUPLICATED" ||
       lpData?.code   === 1008         ||
       lpData?.code   === 1049;
-    const isError =
+    const isError      =
       lpData?.status === "ERROR" ||
       (lpData?.code && lpData?.code !== 0 && !isDuplicated);
 
-    const rawRedirectUrl =
+    const redirectUrl =
       lpData?.redirect_url       ||
       lpData?.redirect           ||
       lpData?.RedirectURL        ||
-      lpData?.data?.redirect_url ||
+      lpData?.data?.redirect_url ||  // ✅ LP nested lowercase
       lpData?.data?.RedirectURL  || null;
 
-    // ── FIX 9 — price with ?? operator (won't fail on 0) ────
-    const rawPrice =
-      lpData?.price           ??
-      lpData?.Price           ??
-      lpData?.payout          ??
-      lpData?.sold_price      ??
-      lpData?.data?.price     ??
-      lpData?.data?.Price     ?? null;
-
-    const price = (rawPrice !== null && rawPrice !== undefined && rawPrice !== "")
-      ? parseFloat(rawPrice)
-      : null;
-
-    console.log("[Price Debug]", { rawPrice, price, keys: Object.keys(lpData || {}) });
-
-    // ── FIX 10 — Validate redirect before sending to user ───
-    const isValidRedirect = rawRedirectUrl
-      ? await validateRedirectUrl(rawRedirectUrl)
-      : false;
-    const redirectUrl = isValidRedirect ? rawRedirectUrl : FALLBACK_URL;
-
-    console.log("[Redirect Decision]", {
-      raw: rawRedirectUrl,
-      valid: isValidRedirect,
-      final: redirectUrl,
-    });
+    const price =
+  lpData?.price       ||
+  lpData?.Price       ||
+  lpData?.data?.Price ||
+  lpData?.data?.price || null;  // ✅ add this
 
     // ── ERROR ─────────────────────────────────────────────────
     if (isError) {
@@ -564,11 +400,8 @@ export async function POST(request) {
         lp_message:      lpData?.message || null,
       });
 
-      await syncToKlaviyo(
-        { ...payload, lp_status: "ERROR", lead_id: lpData?.lead_id || lpData?.id || null, price: null },
-        "rejected"
-      );
-      console.log(`\n✅ MongoDB UPDATED — status: ERROR | time: ${lp_response_ms}ms\n`);
+      await syncToKlaviyo({ ...payload, lp_status: "ERROR", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
+      console.log(`\n✅ MongoDB UPDATED — status: ERROR | redirect: ${FALLBACK_URL} | time: ${lp_response_ms}ms\n`);
 
       return NextResponse.json({
         success: true,
@@ -584,28 +417,19 @@ export async function POST(request) {
 
     // ── DUPLICATED ────────────────────────────────────────────
     if (isDuplicated) {
-      // ── FIX 11 — Recover original redirect for duplicate user ─
-      const originalRedirect = await getExistingLeadRedirect(payload.email, mobilePhone);
-      const dupRedirect = originalRedirect || redirectUrl || FALLBACK_URL;
-
-      console.log("[Duplicate] Using redirect:", dupRedirect);
-
       await updateLead(insertedId, {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          "DUPLICATED",
-        redirect_url:    dupRedirect,
-        redirected_to:   dupRedirect,
+        redirect_url:    redirectUrl || FALLBACK_URL,
+        redirected_to:   redirectUrl || FALLBACK_URL,
         lp_response_ms,
         price:           null,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
       });
 
-      await syncToKlaviyo(
-        { ...payload, lp_status: "DUPLICATED", lead_id: lpData?.lead_id || lpData?.id || null, price: null },
-        "rejected"
-      );
-      console.log(`\n✅ MongoDB UPDATED — status: DUPLICATED | redirect: ${dupRedirect} | time: ${lp_response_ms}ms\n`);
+      await syncToKlaviyo({ ...payload, lp_status: "DUPLICATED", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
+      console.log(`\n✅ MongoDB UPDATED — status: DUPLICATED | redirect: ${redirectUrl || FALLBACK_URL} | time: ${lp_response_ms}ms\n`);
 
       return NextResponse.json({
         success:   true,
@@ -614,7 +438,7 @@ export async function POST(request) {
         data: {
           lead_id:      lpData?.lead_id || lpData?.id || null,
           lp_status:    "DUPLICATED",
-          redirect_url: dupRedirect,
+          redirect_url: redirectUrl || FALLBACK_URL,
         },
       });
     }
@@ -624,26 +448,23 @@ export async function POST(request) {
       await updateLead(insertedId, {
         lead_id:         lpData?.lead_id || lpData?.id || null,
         status:          lpData?.status || "ACCEPTED",
-        redirect_url:    redirectUrl,
-        redirected_to:   redirectUrl,
+        redirect_url:    redirectUrl || FALLBACK_URL,
+        redirected_to:   redirectUrl || FALLBACK_URL,
         lp_response_ms,
         price:           price,
         lp_raw_response: lpData,
         lp_message:      lpData?.message || null,
       });
 
-      await syncToKlaviyo(
-        { ...payload, lp_status: "ACCEPTED", lead_id: lpData?.lead_id || lpData?.id || null, price },
-        "accepted"
-      );
-      console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl} | price: ${price} | time: ${lp_response_ms}ms\n`);
+      await syncToKlaviyo({ ...payload, lp_status: "ACCEPTED", lead_id: lpData?.lead_id || lpData?.id || null, price }, "accepted");
+      console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl || FALLBACK_URL} | price: ${price} | time: ${lp_response_ms}ms\n`);
 
       return NextResponse.json({
         success: true,
         message: "Application submitted successfully!",
         data: {
           lead_id:      lpData?.lead_id || lpData?.id || null,
-          redirect_url: redirectUrl,
+          redirect_url: redirectUrl || FALLBACK_URL,
           price:        price,
           lp_status:    lpData?.status || null,
         },
@@ -662,10 +483,7 @@ export async function POST(request) {
       lp_message:      lpData?.message || null,
     });
 
-    await syncToKlaviyo(
-      { ...payload, lp_status: "REJECTED", lead_id: lpData?.lead_id || lpData?.id || null, price: null },
-      "rejected"
-    );
+    await syncToKlaviyo({ ...payload, lp_status: "REJECTED", lead_id: lpData?.lead_id || lpData?.id || null, price: null }, "rejected");
     console.log(`\n✅ MongoDB UPDATED — status: REJECTED | redirect: ${FALLBACK_URL} | time: ${lp_response_ms}ms\n`);
 
     return NextResponse.json({
@@ -683,10 +501,7 @@ export async function POST(request) {
     const isTimeout =
       error.code === "ECONNABORTED" || error.message?.includes("timeout");
 
-    console.error(
-      `\n[submit-lead] ${isTimeout ? "TIMEOUT" : "ERROR"} after ${lp_response_ms}ms:`,
-      error.message
-    );
+    console.error(`\n[submit-lead] ${isTimeout ? "TIMEOUT" : "ERROR"} after ${lp_response_ms}ms:`, error.message);
 
     await updateLead(insertedId, {
       status:          isTimeout ? "TIMEOUT" : "ERROR",
@@ -696,10 +511,7 @@ export async function POST(request) {
       error_message:   error.message,
     });
 
-    await syncToKlaviyo(
-      { ...payload, lp_status: isTimeout ? "TIMEOUT" : "ERROR", lead_id: null, price: null },
-      "rejected"
-    );
+    await syncToKlaviyo({ ...payload, lp_status: isTimeout ? "TIMEOUT" : "ERROR", lead_id: null, price: null }, "rejected");
     console.log(`\n⚠️  MongoDB UPDATED — status: ${isTimeout ? "TIMEOUT" : "ERROR"} | time: ${lp_response_ms}ms\n`);
 
     return NextResponse.json({
