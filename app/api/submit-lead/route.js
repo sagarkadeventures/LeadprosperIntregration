@@ -152,7 +152,8 @@ export async function POST(request) {
 
   // ── Computed dates ────────────────────────────────────────
   const yearsBack = parseInt(body.years_at_address || "1", 10);
-const safeYears = yearsBack === 0 ? 1 : yearsBack; // ✅ minimum 1 year
+const safeYears = yearsBack === 0 ? 1 : yearsBack; // ✅ "0" → 1 year minimum
+moveDate.setFullYear(moveDate.getFullYear() - safeYears);
 const moveDate  = new Date();
 moveDate.setFullYear(moveDate.getFullYear() - safeYears); // ✅ use safeYears
 const moveHereDate = moveDate.toISOString().split("T")[0];
