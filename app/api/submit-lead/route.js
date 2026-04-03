@@ -151,11 +151,10 @@ export async function POST(request) {
   const incomeSource = incomeSourceMap[body.income_source] || "Employment";
 
   // ── Computed dates ────────────────────────────────────────
-  const yearsBack = parseInt(body.years_at_address || "1", 10);
-const safeYears = yearsBack === 0 ? 1 : yearsBack; // ✅ "0" → 1 year minimum
+  const yearsBack    = parseInt(body.years_at_address || "1", 10);
+const safeYears    = yearsBack === 0 ? 1 : yearsBack;
+const moveDate     = new Date();
 moveDate.setFullYear(moveDate.getFullYear() - safeYears);
-const moveDate  = new Date();
-moveDate.setFullYear(moveDate.getFullYear() - safeYears); // ✅ use safeYears
 const moveHereDate = moveDate.toISOString().split("T")[0];
 
   const monthsBack = parseInt(body.months_at_bank    || "12", 10);
