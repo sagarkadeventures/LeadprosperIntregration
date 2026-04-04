@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CALL_TIMES, LOAN_REASONS, CREDIT_RATINGS } from "../lib/constants";
+import { CALL_TIMES, LOAN_REASONS, CREDIT_RATINGS } from "../../lib/constants";
 import { SelectField, ToggleField } from "./FormFields";
 
 export default function StepFinal({ data, errors, onChange }) {

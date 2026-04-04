@@ -3,8 +3,8 @@
 import React, { useState, useCallback } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { INITIAL_FORM_DATA, STEP_LABELS } from "../lib/constants";
-import { validateStep } from "../lib/validation";
+import { INITIAL_FORM_DATA, STEP_LABELS } from "../../lib/constants";
+import { validateStep } from "../../lib/validation";
 import StepPersonal from "./StepPersonal";
 import StepAddress from "./StepAddress";
 import StepFinancial from "./StepFinancial";

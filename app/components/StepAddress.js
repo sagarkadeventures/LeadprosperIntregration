@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { US_STATES, YEARS_AT_ADDRESS } from "../lib/constants";
+import { US_STATES, YEARS_AT_ADDRESS } from "../../lib/constants";
 import { InputField, SelectField, ToggleField } from "./FormFields";
 
 const PinIcon = () => (

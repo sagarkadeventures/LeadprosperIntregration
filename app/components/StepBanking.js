@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { US_STATES, MONTHS_AT_BANK } from "../lib/constants";
+import { US_STATES, MONTHS_AT_BANK } from "../../lib/constants";
 import { InputField, SelectField, ToggleField } from "./FormFields";
 
 const BankIcon = () => (

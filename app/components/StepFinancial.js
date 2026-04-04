@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { INCOME_SOURCES, PAY_FREQUENCIES, MONTHS_AT_EMPLOYER } from "../lib/constants";
+import { INCOME_SOURCES, PAY_FREQUENCIES, MONTHS_AT_EMPLOYER } from "../../lib/constants";
 import { InputField, SelectField, ToggleField, DateField } from "./FormFields";
 
 const LockIcon = () => (
