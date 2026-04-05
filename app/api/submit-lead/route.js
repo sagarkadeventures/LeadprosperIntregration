@@ -381,6 +381,14 @@ const moveHereDate = moveDate.toISOString().split("T")[0];
       lpData?.data?.redirect_url ||  // ✅ LP nested lowercase
       lpData?.data?.RedirectURL  || null;
 
+      // ── REDIRECT DEBUG LOGS ───────────────────────────────
+console.log("[LP Parse] lpData.status      :", lpData?.status);
+console.log("[LP Parse] lpData.code        :", lpData?.code);
+console.log("[LP Parse] lpData.redirect_url:", lpData?.redirect_url);
+console.log("[LP Parse] redirectUrl (final):", redirectUrl);
+console.log("[LP Parse] All LP keys        :", Object.keys(lpData || {}));
+// ─────────────────────────────────────────────────────
+
     const price =
   lpData?.price       ||
   lpData?.Price       ||
@@ -458,6 +466,8 @@ const moveHereDate = moveDate.toISOString().split("T")[0];
 
       await syncToKlaviyo({ ...payload, lp_status: "ACCEPTED", lead_id: lpData?.lead_id || lpData?.id || null, price }, "accepted");
       console.log(`\n✅ MongoDB UPDATED — status: ACCEPTED | redirect: ${redirectUrl || FALLBACK_URL} | price: ${price} | time: ${lp_response_ms}ms\n`);
+        console.log(`[ACCEPTED] Sending to frontend → redirect_url: ${redirectUrl || FALLBACK_URL}`); // ✅ correct place
+
 
       return NextResponse.json({
         success: true,
