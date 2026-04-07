@@ -16,12 +16,12 @@ export default function FormPage() {
         {/* Logo / Brand */}
         <div className="mb-8 text-center logo-top-section">
           <img
-            src="https://radcred.com/media/2022/11/RadCred-Logo-Small-Size.png"
+            src="/radcred-logo.png"
             alt="RadCred"
             className="mx-auto h-10 w-auto"
           />
           <img
-            src="https://radcred.com/media/2025/08/characterfaceexpressionMOV2-ezgif.com-video-to-gif-converter-2.gif"
+            src="/radcred-bot.gif"
             alt=""
             className="mx-auto mt-2"
             style={{ width: "70px" }}
