@@ -157,12 +157,12 @@ const moveDate     = new Date();
 moveDate.setFullYear(moveDate.getFullYear() - safeYears);
 const moveHereDate = moveDate.toISOString().split("T")[0];
 
-  const monthsBack = parseInt(body.months_at_bank    || "12", 10);
+  const monthsBack = parseInt(body.months_at_bank    || "6", 10);
   const bankDate   = new Date();
   bankDate.setMonth(bankDate.getMonth() - monthsBack);
   const bankStart  = bankDate.toISOString().split("T")[0];
 
-  const empMonths  = parseInt(body.months_at_employer || "12", 10);
+  const empMonths  = parseInt(body.months_at_employer || "6", 10);
   const empDate    = new Date();
   empDate.setMonth(empDate.getMonth() - empMonths);
   const employmentStarted = empDate.toISOString().split("T")[0];
